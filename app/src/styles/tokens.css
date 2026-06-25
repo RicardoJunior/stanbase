@@ -1,0 +1,57 @@
+/*
+ * Stanbase tokens — 3-layer architecture (§23.1.2)
+ *   primitive  → semantic  → component
+ * The identity palette is the verbatim brand from stanbase.html.
+ * Semantic tokens are what components read (never raw hex). The member surface
+ * overrides a controlled subset of the semantic layer per org (see lib/theme.ts).
+ */
+
+:root {
+  /* ── primitives (identity, immutable) ─────────────────────────── */
+  --ivory: #f5f3ed;
+  --paper: #fffefb;
+  --ink: #16150f;
+  --ink-soft: #5d584c;
+  --gold: #b8965a;
+  --gold-deep: #8a6a32;
+  --gold-light: #e7d3a6;
+  --obsidian: #15140f;
+  --obsidian-2: #211f17;
+  --line-raw: rgba(22, 21, 15, 0.1);
+  --line-2-raw: rgba(22, 21, 15, 0.06);
+
+  --font-display: "Jost", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+
+  --radius-base: 16px;
+
+  /* ── semantic (light) — identity defaults; member theme can override ── */
+  --color-bg: var(--ivory);
+  --color-surface: var(--paper);
+  --color-surface-2: var(--ivory);
+  --color-text: var(--ink);
+  --color-text-muted: var(--ink-soft);
+  --color-primary: var(--ink); /* brand action; member orgs override */
+  --color-primary-contrast: var(--ivory);
+  --color-accent: var(--gold-deep);
+  --color-border: var(--line-raw);
+  --color-success: #3f7d4e;
+  --color-warning: #b8861f;
+  --color-danger: #b4453a;
+  --color-focus-ring: var(--gold-deep);
+}
+
+/* dark mode semantic mapping */
+[data-theme="dark"] {
+  --color-bg: var(--obsidian);
+  --color-surface: var(--obsidian-2);
+  --color-surface-2: #2a2820;
+  --color-text: #efe9da;
+  --color-text-muted: rgba(239, 233, 218, 0.6);
+  --color-primary: var(--gold);
+  --color-primary-contrast: var(--obsidian);
+  --color-accent: var(--gold);
+  --color-border: rgba(231, 211, 166, 0.16);
+  --color-focus-ring: var(--gold);
+}

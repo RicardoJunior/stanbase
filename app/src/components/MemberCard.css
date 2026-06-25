@@ -1,0 +1,136 @@
+/* Member card 3D (§23.1.7) — ported from the landing's effect, reusable. */
+.mc-stage {
+  perspective: 1400px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.mc-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1.56/1;
+  border: 1px solid rgba(184, 150, 90, 0.34);
+  border-radius: 20px;
+  padding: 26px 28px;
+  color: #efe9da;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 40px 80px -36px rgba(22, 21, 15, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform-style: preserve-3d;
+  transition: transform 0.25s ease;
+  will-change: transform;
+  overflow: hidden;
+  background: radial-gradient(120% 140% at 80% 0%, #2c2920 0%, #15140f 55%), #15140f;
+}
+.mc-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(231, 211, 166, 0.16) 47%, transparent 60%);
+  transform: translateX(-30%);
+  transition: transform 0.9s ease;
+}
+.mc-card.is-inactive {
+  filter: grayscale(0.7) brightness(0.7);
+}
+.mc-card.is-inactive::before {
+  content: "INATIVO";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+  font-size: 1.1rem;
+  color: rgba(239, 233, 218, 0.55);
+  border: 2px solid rgba(239, 233, 218, 0.25);
+  border-radius: 20px;
+  z-index: 5;
+  transform: rotate(-8deg) scale(0.9);
+}
+.mc-stage:hover .mc-card::after {
+  transform: translateX(40%);
+}
+.mc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.mc-z1 {
+  transform: translateZ(40px);
+}
+.mc-z2 {
+  transform: translateZ(30px);
+}
+.mc-logo {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.2rem;
+  letter-spacing: 0.05em;
+}
+.mc-logo b {
+  color: var(--gold);
+  font-weight: 300;
+}
+.mc-chip {
+  width: 46px;
+  height: 33px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #d9bd86, #a07d3e 48%, #e7d3a6 52%, #9a7333);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  position: relative;
+  flex: none;
+}
+.mc-chip::before {
+  content: "";
+  position: absolute;
+  inset: 9px 13px;
+  border: 1px solid rgba(21, 20, 15, 0.35);
+  border-radius: 2px;
+}
+.mc-tierlabel {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.mc-tiername {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.7rem;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+.mc-holder {
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+}
+.mc-holder small {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  color: rgba(239, 233, 218, 0.5);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.mc-num {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--gold);
+  letter-spacing: 0.08em;
+}
+.mc-qr-inline {
+  transform: translateZ(50px);
+  border-radius: 8px;
+  padding: 4px;
+  background: #fffefb;
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.6);
+  flex: none;
+}

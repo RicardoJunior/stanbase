@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stanbase — a base de membros das maiores comunidades</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Hanken+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ivory:#f5f3ed;--paper:#fffefb;--ink:#16150f;--ink-soft:#5d584c;
+    --gold:#b8965a;--gold-deep:#8a6a32;--gold-light:#e7d3a6;
+    --obsidian:#15140f;--obsidian-2:#211f17;--line:rgba(22,21,15,.10);--line-2:rgba(22,21,15,.06);
+    --display:'Jost',system-ui,sans-serif;--body:'Hanken Grotesk',system-ui,sans-serif;--mono:'Space Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--body);background:var(--ivory);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--gold-light);color:var(--ink)}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+  .logo{font-family:var(--display);font-weight:300;letter-spacing:.06em;font-size:1.45rem}
+  .logo b{font-weight:300;color:var(--gold-deep)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gold-deep);display:inline-block}
+  .eyebrow.muted{color:var(--ink-soft)}
+  h1,h2,h3{font-family:var(--display);font-weight:300;line-height:1.08;letter-spacing:-.01em}
+
+  nav{position:sticky;top:0;z-index:50;transition:background .3s ease,border-color .3s ease;border-bottom:1px solid transparent}
+  nav.scrolled{background:rgba(245,243,237,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:78px}
+  .nav-links{display:flex;gap:38px;align-items:center}
+  .nav-links a{font-size:.92rem;color:var(--ink-soft);transition:color .2s}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{font-family:var(--body);font-weight:500;font-size:.92rem;padding:11px 22px;border-radius:100px;cursor:pointer;border:1px solid transparent;transition:transform .2s ease,box-shadow .25s ease,background .2s,color .2s;display:inline-block}
+  .btn-gold{background:var(--ink);color:var(--ivory)}
+  .btn-gold:hover{transform:translateY(-2px);box-shadow:0 12px 30px -10px rgba(22,21,15,.45)}
+  .btn-ghost{border-color:var(--line);color:var(--ink);background:transparent}
+  .btn-ghost:hover{border-color:var(--ink)}
+  .nav .btn{padding:9px 20px}
+
+  .hero{padding:84px 0 96px;position:relative}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center}
+  .hero h1{font-size:clamp(2.7rem,5.6vw,4.6rem);margin:22px 0 24px}
+  .hero h1 .em{color:var(--gold-deep)}
+  .hero p.lead{font-size:1.18rem;color:var(--ink-soft);max-width:32ch;margin-bottom:34px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+  .hero-note{margin-top:26px;font-family:var(--mono);font-size:.74rem;letter-spacing:.04em;color:var(--ink-soft)}
+  .hero-note span{color:var(--gold-deep)}
+
+  .card-stage{perspective:1400px;display:flex;justify-content:center}
+  .member-card{position:relative;width:100%;max-width:420px;aspect-ratio:1.56/1;
+    background:radial-gradient(120% 140% at 80% 0%,#2c2920 0%,var(--obsidian) 55%),var(--obsidian);
+    border:1px solid rgba(184,150,90,.34);border-radius:20px;padding:30px 32px;color:#efe9da;
+    display:flex;flex-direction:column;justify-content:space-between;
+    box-shadow:0 40px 80px -36px rgba(22,21,15,.6),inset 0 1px 0 rgba(255,255,255,.05);
+    transform-style:preserve-3d;transition:transform .25s ease;will-change:transform;overflow:hidden}
+  .member-card::after{content:"";position:absolute;inset:0;border-radius:20px;pointer-events:none;
+    background:linear-gradient(115deg,transparent 30%,rgba(231,211,166,.16) 47%,transparent 60%);
+    transform:translateX(-30%);transition:transform .9s ease}
+  .member-card:hover::after{transform:translateX(40%)}
+  .mc-top{display:flex;justify-content:space-between;align-items:flex-start;transform:translateZ(40px)}
+  .mc-logo{font-family:var(--display);font-weight:300;font-size:1.25rem;letter-spacing:.05em}
+  .mc-logo b{color:var(--gold);font-weight:300}
+  .mc-chip{width:48px;height:34px;border-radius:7px;background:linear-gradient(135deg,#d9bd86,#a07d3e 48%,#e7d3a6 52%,#9a7333);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);position:relative}
+  .mc-chip::before{content:"";position:absolute;inset:9px 14px;border:1px solid rgba(21,20,15,.35);border-radius:2px}
+  .mc-tier{transform:translateZ(30px)}
+  .mc-tier .label{font-family:var(--mono);font-size:.64rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);opacity:.85}
+  .mc-tier .name{font-family:var(--display);font-weight:300;font-size:1.9rem;letter-spacing:.01em;margin-top:4px}
+  .mc-bottom{display:flex;justify-content:space-between;align-items:flex-end;transform:translateZ(30px)}
+  .mc-bottom .holder{font-size:.95rem;letter-spacing:.04em}
+  .mc-bottom .holder small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;color:rgba(239,233,218,.5);text-transform:uppercase;margin-bottom:3px}
+  .mc-bottom .num{font-family:var(--mono);font-size:.86rem;color:var(--gold);letter-spacing:.08em}
+
+  .trust{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:30px 0}
+  .trust-in{display:flex;align-items:center;gap:40px;flex-wrap:wrap;justify-content:space-between}
+  .trust p{font-family:var(--mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+  .trust-logos{display:flex;gap:30px;flex-wrap:wrap;align-items:center}
+  .trust-logos span{font-family:var(--display);font-weight:400;font-size:1.05rem;color:var(--ink);opacity:.55;letter-spacing:.02em}
+
+  section.block{padding:108px 0}
+  .sec-head{max-width:680px;margin-bottom:56px}
+  .sec-head h2{font-size:clamp(2rem,3.8vw,3rem);margin:16px 0 18px}
+  .sec-head p{font-size:1.1rem;color:var(--ink-soft)}
+
+  .int-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .int-card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:28px;transition:transform .25s ease,box-shadow .3s ease,border-color .25s}
+  .int-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -28px rgba(22,21,15,.4);border-color:rgba(184,150,90,.5)}
+  .int-tag{font-family:var(--mono);font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-deep);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .int-dot{width:6px;height:6px;border-radius:50%;background:var(--gold)}
+  .int-card h3{font-size:1.32rem;margin-bottom:8px;font-weight:300}
+  .int-card p{font-size:.96rem;color:var(--ink-soft)}
+  .int-names{margin-top:18px;display:flex;flex-wrap:wrap;gap:7px}
+  .int-names em{font-style:normal;font-family:var(--mono);font-size:.7rem;letter-spacing:.02em;color:var(--ink);background:var(--ivory);border:1px solid var(--line);padding:4px 9px;border-radius:7px}
+  .int-tag .free{margin-left:auto;font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.14em;color:var(--gold-deep);background:rgba(184,150,90,.1);border:1px solid rgba(184,150,90,.45);padding:3px 9px;border-radius:100px}
+  .int-foot{text-align:center;margin-top:30px;font-family:var(--mono);font-size:.78rem;letter-spacing:.04em;color:var(--ink-soft)}
+  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .feat-card{background:var(--paper);border:1px solid var(--line);border-top:2px solid var(--gold);border-radius:0 0 16px 16px;padding:34px 30px;transition:transform .25s ease,box-shadow .3s ease}
+  .feat-card:hover{transform:translateY(-4px);box-shadow:0 24px 48px -28px rgba(22,21,15,.42)}
+  .feat-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-deep);display:block;margin-bottom:18px}
+  .feat-card h3{font-size:1.5rem;font-weight:300;margin-bottom:11px}
+  .feat-card p{font-size:1rem;color:var(--ink-soft)}
+
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:10px}
+  .pillar{border-top:1px solid var(--ink);padding-top:22px}
+  .pillar .n{font-family:var(--mono);font-size:.74rem;letter-spacing:.2em;color:var(--gold-deep)}
+  .pillar h3{font-size:1.5rem;margin:14px 0 12px;font-weight:300}
+  .pillar p{color:var(--ink-soft);font-size:1rem}
+
+  .ai{background:var(--obsidian);color:#efe9da;position:relative;overflow:hidden}
+  .ai .glow{position:absolute;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(184,150,90,.18),transparent 65%);top:-180px;right:-120px;pointer-events:none}
+  .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;position:relative;z-index:1}
+  .ai h2{font-size:clamp(2rem,3.8vw,3rem);margin:18px 0 22px;color:#f6f1e5}
+  .ai p.lead{color:rgba(239,233,218,.72);font-size:1.1rem;max-width:42ch}
+  .ai .eyebrow{color:var(--gold)}
+  .ai-feats{display:flex;flex-direction:column;gap:2px}
+  .ai-feat{display:flex;gap:18px;padding:20px 0;border-top:1px solid rgba(231,211,166,.16)}
+  .ai-feat:last-child{border-bottom:1px solid rgba(231,211,166,.16)}
+  .ai-feat .k{font-family:var(--mono);font-size:.8rem;color:var(--gold);letter-spacing:.06em;min-width:30px;padding-top:3px}
+  .ai-feat .t{font-family:var(--display);font-weight:300;font-size:1.3rem;color:#f3eee2}
+  .ai-feat .d{font-size:.92rem;color:rgba(239,233,218,.6);margin-top:3px}
+
+  .verticals{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:8px}
+  .vert{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:26px 22px;transition:transform .25s,box-shadow .3s}
+  .vert:hover{transform:translateY(-4px);box-shadow:0 22px 44px -28px rgba(22,21,15,.4)}
+  .vert .vlabel{font-family:var(--mono);font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-deep);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  .vert ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .vert li{font-family:var(--display);font-weight:300;font-size:1.12rem;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+  .vert li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);flex:none}
+  .vert li:last-child{color:var(--gold-deep)}
+  .vert-note{margin-top:30px;font-family:var(--mono);font-size:.78rem;letter-spacing:.04em;color:var(--ink-soft);text-align:center}
+
+  .price{background:var(--obsidian);color:#efe9da;position:relative;overflow:hidden}
+  .price .glow{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(184,150,90,.16),transparent 65%);bottom:-260px;left:-140px;pointer-events:none}
+  .price-in{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+  .price .eyebrow{color:var(--gold)}
+  .price h2{font-size:clamp(2rem,3.8vw,3rem);margin:18px 0 18px;color:#f6f1e5}
+  .price p.lead{color:rgba(239,233,218,.72);font-size:1.1rem;max-width:40ch}
+  .price-card{background:rgba(255,255,255,.03);border:1px solid rgba(184,150,90,.4);border-radius:20px;padding:42px 40px}
+  .price-num{font-family:var(--display);font-weight:300;font-size:clamp(4rem,9vw,6.2rem);line-height:1;color:#f6f1e5;letter-spacing:-.02em}
+  .price-num span{color:var(--gold)}
+  .price-sub{font-family:var(--mono);font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-top:6px}
+  .price-list{list-style:none;margin:30px 0 0;display:flex;flex-direction:column;gap:13px}
+  .price-list li{display:flex;gap:12px;align-items:flex-start;font-size:1rem;color:rgba(239,233,218,.82)}
+  .price-list li b{color:var(--gold);font-weight:400;font-family:var(--mono);font-size:.85rem;padding-top:2px}
+  .price-fine{margin-top:26px;font-size:.92rem;color:rgba(239,233,218,.55)}
+
+  .cta-final{text-align:center;padding:120px 0}
+  .cta-final h2{font-size:clamp(2.2rem,4.6vw,3.6rem);margin-bottom:20px}
+  .cta-final p{font-size:1.15rem;color:var(--ink-soft);max-width:46ch;margin:0 auto 36px}
+
+  footer{border-top:1px solid var(--line);padding:54px 0 46px}
+  .foot-in{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;flex-wrap:wrap}
+  .foot-col h4{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;font-weight:700}
+  .foot-col a{display:block;font-size:.94rem;color:var(--ink-soft);margin-bottom:9px;transition:color .2s}
+  .foot-col a:hover{color:var(--ink)}
+  .foot-brand{max-width:280px}
+  .foot-brand p{font-size:.9rem;color:var(--ink-soft);margin-top:14px}
+  .foot-base{margin-top:44px;padding-top:24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;color:var(--ink-soft)}
+
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (max-width:900px){
+    .hero-grid,.ai-grid,.price-in{grid-template-columns:1fr;gap:48px}
+    .int-grid,.pillars,.feat-grid{grid-template-columns:1fr}
+    .verticals{grid-template-columns:1fr 1fr}
+    .nav-links{display:none}
+    .hero{padding:54px 0 64px}
+    section.block{padding:74px 0}
+    .pillars{gap:30px}
+  }
+  @media (max-width:520px){.wrap{padding:0 22px}.verticals{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="wrap nav-in">
+    <div class="logo">stan<b>base</b></div>
+    <div class="nav-links">
+      <a href="#integracoes">Integrações</a>
+      <a href="#plataforma">Plataforma</a>
+      <a href="#ia">IA</a>
+      <a href="#preco">Preço</a>
+    </div>
+    <a class="btn btn-gold" href="#demo">Agendar demo</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div class="reveal">
+      <span class="eyebrow">Membership · IA-first</span>
+      <h1>Trate cada fã<br>como ele <span class="em">merece</span>.</h1>
+      <p class="lead">stanbase transforma a sua comunidade em uma base de membros — clubes, times, comunidades e creators, com proximidade real, receita recorrente e uma IA que conhece cada fã pelo nome.</p>
+      <div class="hero-cta">
+        <a class="btn btn-gold" href="#demo">Agendar demo</a>
+        <a class="btn btn-ghost" href="#plataforma">Ver a plataforma</a>
+      </div>
+      <p class="hero-note">conecta em minutos · <span>sem código</span> · feito no Brasil</p>
+    </div>
+    <div class="reveal card-stage">
+      <div class="member-card" id="card">
+        <div class="mc-top">
+          <div class="mc-logo">stan<b>base</b></div>
+          <div class="mc-chip"></div>
+        </div>
+        <div class="mc-tier">
+          <div class="label">membership</div>
+          <div class="name">Founding Member</div>
+        </div>
+        <div class="mc-bottom">
+          <div class="holder"><small>membro</small>seu maior fã</div>
+          <div class="num">Nº 001</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="trust">
+  <div class="wrap trust-in">
+    <p>Uma base para qualquer comunidade de fãs</p>
+    <div class="trust-logos">
+      <span>clubes de carro</span>
+      <span>times &amp; torcidas</span>
+      <span>gamers</span>
+      <span>baladas</span>
+      <span>creators</span>
+    </div>
+  </div>
+</div>
+
+<section class="block" id="integracoes">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Integrações</span>
+      <h2>Conecta tudo.<br>Sem pagar a mais.</h2>
+      <p>Toda integração é grátis — todas elas, em qualquer plano, pra sempre. Plugue o que a sua comunidade já usa em minutos, sem custo extra e sem código.</p>
+    </div>
+    <div class="int-grid">
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>conteúdo</div>
+        <h3>Conteúdo só de membro</h3>
+        <p>VODs exclusivas, lives fechadas e bastidores liberados conforme o tier do membro.</p>
+        <div class="int-names"><em>Twitch</em><em>YouTube</em><em>Vimeo</em></div>
+      </div>
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>eventos</div>
+        <h3>Ingressos e ativações</h3>
+        <p>Acesso antecipado, lote de membro e drops de evento direto na área de membros.</p>
+        <div class="int-names"><em>Ingresse</em><em>Sympla</em><em>Loja oficial</em></div>
+      </div>
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>identidade</div>
+        <h3>Entra com um clique</h3>
+        <p>Login social e verificação de quem é fã de verdade, sem formulário chato.</p>
+        <div class="int-names"><em>Google</em><em>Apple</em><em>X</em></div>
+      </div>
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>perks do seu nicho</div>
+        <h3>Benefícios sob medida</h3>
+        <p>Gamer conecta a conta do jogo, torcedor valida o sócio, clube de carro reconhece o modelo.</p>
+        <div class="int-names"><em>Steam</em><em>Riot</em><em>APIs do nicho</em></div>
+      </div>
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>canais &amp; comunidade</div>
+        <h3>Cada tier, seus canais</h3>
+        <p>Cargos e grupos liberados na hora certa, em todas as ferramentas onde a sua galera conversa.</p>
+        <div class="int-names"><em>Discord</em><em>Telegram</em><em>WhatsApp</em></div>
+      </div>
+      <div class="int-card reveal">
+        <div class="int-tag"><span class="int-dot"></span>automação &amp; api</div>
+        <h3>Liga no seu stack</h3>
+        <p>API aberta, webhooks e automações prontas pra conectar com o resto das suas ferramentas.</p>
+        <div class="int-names"><em>API</em><em>Webhooks</em><em>Zapier</em></div>
+      </div>
+    </div>
+    <p class="int-foot reveal">não vê a sua ferramenta? a gente conecta pra você.</p>
+  </div>
+</section>
+
+<section class="block" id="recursos" style="padding-top:20px">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Recursos</span>
+      <h2>Feito para tratar<br>fã como fã merece.</h2>
+      <p>Os detalhes que transformam seguidor em membro — e membro em alguém que nunca quer sair.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card reveal">
+        <span class="feat-label">qualificação · IA</span>
+        <h3>Qualifique no automático</h3>
+        <p>A IA gera as perguntas certas e descobre quem é cada fã — interesses, perfil e potencial — sem você levantar um dedo.</p>
+      </div>
+      <div class="feat-card reveal">
+        <span class="feat-label">reconhecimento</span>
+        <h3>Hall of fame</h3>
+        <p>Aos melhores, o destaque que merecem. Rankings, conquistas e um lugar de honra para quem mais ama a sua marca.</p>
+      </div>
+      <div class="feat-card reveal">
+        <span class="feat-label">comunicação</span>
+        <h3>Perto de quem te ama</h3>
+        <p>Envie mensagens, recados e presentes para os membros certos. Proximidade real, na hora certa, com a sua voz.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="plataforma" style="padding-top:20px">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow muted">A plataforma</span>
+      <h2>Leve para você.<br>Premium para o fã.</h2>
+    </div>
+    <div class="pillars">
+      <div class="pillar reveal">
+        <span class="n">01 — proximidade</span>
+        <h3>Esteja perto de quem te ama</h3>
+        <p>Canais, perks e momentos exclusivos que aproximam você dos fãs que mais importam — sem ruído, sem distância.</p>
+      </div>
+      <div class="pillar reveal">
+        <span class="n">02 — receita</span>
+        <h3>Receita recorrente, sem fricção</h3>
+        <p>Assinatura e tiers que viram receita previsível para a sua comunidade, montados em um dia.</p>
+      </div>
+      <div class="pillar reveal">
+        <span class="n">03 — alinhamento</span>
+        <h3>Tudo em um só lugar</h3>
+        <p>Comunidade, conteúdo, eventos e membros sob a sua marca — uma base única, alinhada com o seu mundo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block ai" id="ia">
+  <div class="glow"></div>
+  <div class="wrap ai-grid">
+    <div class="reveal">
+      <span class="eyebrow">IA-first</span>
+      <h2>Uma IA que conhece cada fã pelo nome.</h2>
+      <p class="lead">stanbase não é mais um painel pra você gerenciar. É uma camada de inteligência que cuida da sua base enquanto você cria.</p>
+      <div class="hero-cta" style="margin-top:30px">
+        <a class="btn btn-gold" href="#demo" style="background:var(--gold);color:var(--obsidian)">Ver a IA em ação</a>
+      </div>
+    </div>
+    <div class="ai-feats reveal">
+      <div class="ai-feat"><div class="k">01</div><div><div class="t">Segmenta sozinha</div><div class="d">Reconhece o superfã, o recém-chegado e quem está prestes a sair — e age em cada um.</div></div></div>
+      <div class="ai-feat"><div class="k">02</div><div><div class="t">Sugere o próximo perk</div><div class="d">Propõe o benefício certo, na hora certa, pra cada tier converter mais.</div></div></div>
+      <div class="ai-feat"><div class="k">03</div><div><div class="t">Escreve por você</div><div class="d">Mensagens, drops e campanhas na voz da sua marca, prontas para revisar e enviar.</div></div></div>
+      <div class="ai-feat"><div class="k">04</div><div><div class="t">Prevê o churn</div><div class="d">Avisa antes do fã cancelar e sugere como trazê-lo de volta.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="tiers">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Os membros</span>
+      <h2>Tiers totalmente seus.</h2>
+      <p>Nomes, preços, perks e ordem — tudo configurável, arrastando e soltando. A mesma engine veste qualquer comunidade. Veja como ela se adapta:</p>
+    </div>
+    <div class="verticals">
+      <div class="vert reveal">
+        <div class="vlabel"><span class="int-dot"></span>clube de carro</div>
+        <ul><li>Visitante</li><li>Associado</li><li>Piloto</li><li>Fundador</li></ul>
+      </div>
+      <div class="vert reveal">
+        <div class="vlabel"><span class="int-dot"></span>time de futebol</div>
+        <ul><li>Torcedor</li><li>Sócio</li><li>Sócio Ouro</li><li>Camarote</li></ul>
+      </div>
+      <div class="vert reveal">
+        <div class="vlabel"><span class="int-dot"></span>comunidade gamer</div>
+        <ul><li>Fã</li><li>Membro</li><li>VIP</li><li>Founder</li></ul>
+      </div>
+      <div class="vert reveal">
+        <div class="vlabel"><span class="int-dot"></span>balada / clube</div>
+        <ul><li>Lista</li><li>Frequentador</li><li>VIP</li><li>Black</li></ul>
+      </div>
+    </div>
+    <p class="vert-note">mesma engine · infinitas configurações · do seu jeito</p>
+  </div>
+</section>
+
+<section class="block price" id="preco">
+  <div class="glow"></div>
+  <div class="wrap price-in">
+    <div class="reveal">
+      <span class="eyebrow">Preço</span>
+      <h2>Simples assim.</h2>
+      <p class="lead">Uma taxa fixa por transação. Sem mensalidade, sem setup, sem letrinha miúda. Você só paga quando recebe.</p>
+    </div>
+    <div class="price-card reveal">
+      <div class="price-num">7,99<span>%</span></div>
+      <div class="price-sub">por transação</div>
+      <ul class="price-list">
+        <li><b>—</b>Plataforma completa inclusa: comunidade, conteúdo, eventos e membros</li>
+        <li><b>—</b>Todas as integrações, sem custo extra</li>
+        <li><b>—</b>IA-first inclusa em todos os planos</li>
+        <li><b>—</b>Tiers e perks ilimitados</li>
+      </ul>
+      <p class="price-fine">É só isso. Sem mensalidade, sem surpresa.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final" id="demo">
+  <div class="wrap reveal">
+    <span class="eyebrow">Pronto quando você estiver</span>
+    <h2>Eleve a sua comunidade.</h2>
+    <p>Mostramos em 20 minutos como a sua base de fãs vira uma base de membros — com a sua marca, no seu mundo.</p>
+    <a class="btn btn-gold" href="#" style="padding:15px 34px;font-size:1rem">Agendar demo</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <div class="foot-brand">
+        <div class="logo">stan<b>base</b></div>
+        <p>A base de membros das maiores comunidades. Proximidade, receita e IA — sob a sua marca.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Plataforma</h4>
+        <a href="#integracoes">Integrações</a>
+        <a href="#ia">IA-first</a>
+        <a href="#tiers">Tiers de membro</a>
+        <a href="#preco">Preço</a>
+      </div>
+      <div class="foot-col">
+        <h4>Para quem</h4>
+        <a href="#">Clubes &amp; associações</a>
+        <a href="#">Times &amp; torcidas</a>
+        <a href="#">Gamers &amp; esports</a>
+        <a href="#">Creators &amp; baladas</a>
+      </div>
+      <div class="foot-col">
+        <h4>Empresa</h4>
+        <a href="#">Sobre</a>
+        <a href="#">Contato</a>
+        <a href="#demo">Agendar demo</a>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 stanbase</span>
+      <span>feito no Brasil · trate cada fã como ele merece</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const nav=document.getElementById('nav');
+  const onScroll=()=>{nav.classList.toggle('scrolled',window.scrollY>20)};
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const io=new IntersectionObserver((entries)=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.14});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  if(!reduce){
+    const card=document.getElementById('card');
+    const stage=card.closest('.card-stage');
+    stage.addEventListener('mousemove',(ev)=>{
+      const r=stage.getBoundingClientRect();
+      const px=(ev.clientX-r.left)/r.width-.5;
+      const py=(ev.clientY-r.top)/r.height-.5;
+      card.style.transform='rotateY('+(px*12)+'deg) rotateX('+(-py*12)+'deg) translateY(-2px)';
+    });
+    stage.addEventListener('mouseleave',()=>{card.style.transform='rotateY(0) rotateX(0)'});
+  }
+</script>
+</body>
+</html>
