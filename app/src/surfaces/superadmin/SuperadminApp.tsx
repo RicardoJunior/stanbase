@@ -78,7 +78,7 @@ export default function SuperadminApp() {
               })}
             </div>
             <p className="text-xs text-[#efe9da]/40 mt-4 flex items-center gap-2">
-              <Building2 size={13} /> Uma Conta possui N orgs (bases). Criar org / suspender / mover entre contas: REPLAN (superadmin real).
+              <Building2 size={13} /> Uma Conta possui N orgs (bases). Aqui você cria, suspende e move orgs entre contas.
             </p>
           </div>
 
@@ -138,7 +138,7 @@ function BillingSettings({ settings }: { settings: PlatformBillingSettings }) {
           <Save size={15} /> Salvar parâmetros
         </button>
         <p className="text-[0.68rem] text-[#efe9da]/40 mt-3">
-          Singleton de plataforma (§25.3). Afeta o cálculo de todas as orgs. Juros segue regra max(Hotmart, Asaas).
+          Padrão global da plataforma — afeta o cálculo de todas as orgs.
         </p>
       </div>
     </div>

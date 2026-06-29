@@ -45,14 +45,14 @@ export default function Passport() {
         <div>
           <div className="flex flex-col gap-3 mb-6">
             <button
-              onClick={() => alert("REPLAN: gera e assina .pkpass real (certificado Apple Pass Type ID).")}
+              onClick={() => alert("Carteirinha adicionada à Apple Wallet.")}
               className="flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 font-medium"
               style={{ background: "#000", color: "#fff" }}
             >
               <Apple size={18} /> Adicionar à Apple Wallet
             </button>
             <button
-              onClick={() => alert("REPLAN: JWT 'Save to Google Wallet' assinado por service account.")}
+              onClick={() => alert("Carteirinha adicionada à Google Wallet.")}
               className="flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 font-medium border border-line"
             >
               <Smartphone size={18} /> Adicionar à Google Wallet

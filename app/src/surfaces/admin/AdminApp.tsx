@@ -2,10 +2,11 @@ import { NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Layers, Receipt, CalendarDays, FileLock2, MessagesSquare,
   Send, Trophy, Sparkles, Plug, ScanLine, Code2, Settings, ChevronDown, ExternalLink, RotateCcw,
+  LayoutTemplate,
 } from "lucide-react";
 import { useState } from "react";
 import { useAdminOrg } from "./useAdminOrg";
-import { resetDemo } from "@/lib/store";
+import { resetDemo, useStore } from "@/lib/store";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MemberDetail from "./pages/MemberDetail";
@@ -14,12 +15,15 @@ import Revenue from "./pages/Revenue";
 import Events from "./pages/Events";
 import Validation from "./pages/Validation";
 import SettingsPage from "./pages/Settings";
+import Integrations from "./pages/Integrations";
+import PageBuilder from "./pages/PageBuilder";
 import Placeholder from "./pages/Placeholder";
 
 const NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/members", icon: Users, label: "Membros / CRM" },
   { to: "/admin/tiers", icon: Layers, label: "Tiers & Perks" },
+  { to: "/admin/page", icon: LayoutTemplate, label: "Página do membro" },
   { to: "/admin/revenue", icon: Receipt, label: "Receita & Pagamentos" },
   { to: "/admin/events", icon: CalendarDays, label: "Eventos & Ingressos" },
   { to: "/admin/validation", icon: ScanLine, label: "Validação & Portaria" },
@@ -28,7 +32,7 @@ const NAV = [
   { to: "/admin/communication", icon: Send, label: "Comunicação", soon: true },
   { to: "/admin/hall", icon: Trophy, label: "Hall of Fame", soon: true },
   { to: "/admin/ai", icon: Sparkles, label: "IA", soon: true },
-  { to: "/admin/integrations", icon: Plug, label: "Integrações", soon: true },
+  { to: "/admin/integrations", icon: Plug, label: "Integrações" },
   { to: "/admin/developers", icon: Code2, label: "Desenvolvedores", soon: true },
   { to: "/admin/settings", icon: Settings, label: "Configurações" },
 ];
@@ -135,8 +139,14 @@ function Sidebar() {
 }
 
 function Header() {
-  const { org } = useAdminOrg();
+  const { org, orgId } = useAdminOrg();
   const navigate = useNavigate();
+  const owner = useStore((db) =>
+    db.orgUsers.find((u) => u.orgId === orgId && u.role === "owner") ??
+    db.orgUsers.find((u) => u.orgId === orgId)
+  );
+  const ownerName = owner?.name ?? "Dono";
+  const initials = ownerName.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   return (
     <header className="h-[68px] border-b border-line flex items-center justify-between px-7 sticky top-0 bg-bg/85 backdrop-blur z-30">
       <OrgSelector />
@@ -152,11 +162,11 @@ function Header() {
         <div className="w-px h-6 bg-line" />
         <div className="flex items-center gap-2.5">
           <span className="w-8 h-8 rounded-full bg-surface-2 border border-line flex items-center justify-center font-mono text-xs text-muted">
-            RJ
+            {initials}
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-medium">Ricardo Júnior</div>
-            <div className="font-mono text-[0.58rem] uppercase tracking-wide text-muted">owner</div>
+            <div className="text-sm font-medium">{ownerName}</div>
+            <div className="font-mono text-[0.58rem] uppercase tracking-wide text-muted">{owner?.role ?? "owner"}</div>
           </div>
         </div>
       </div>
@@ -178,6 +188,7 @@ export default function AdminApp() {
             <Route path="members" element={<Members />} />
             <Route path="members/:id" element={<MemberDetail />} />
             <Route path="tiers" element={<Tiers />} />
+            <Route path="page" element={<PageBuilder />} />
             <Route path="revenue" element={<Revenue />} />
             <Route path="events" element={<Events />} />
             <Route path="validation" element={<Validation />} />
@@ -187,7 +198,7 @@ export default function AdminApp() {
             <Route path="communication" element={<Placeholder module="Comunicação & Campanhas" />} />
             <Route path="hall" element={<Placeholder module="Hall of Fame" />} />
             <Route path="ai" element={<Placeholder module="Camada de IA" />} />
-            <Route path="integrations" element={<Placeholder module="Integrações" />} />
+            <Route path="integrations" element={<Integrations />} />
             <Route path="developers" element={<Placeholder module="Desenvolvedores (API/Webhooks/MCP)" />} />
           </Routes>
         </main>

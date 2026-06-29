@@ -9,7 +9,7 @@ import type { DBSnapshot } from "@/types/domain";
 import { buildSeed } from "@/seed/seed";
 
 const KEY = "stanbase.db.v1";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 6;
 
 let state: DBSnapshot = load();
 const listeners = new Set<() => void>();

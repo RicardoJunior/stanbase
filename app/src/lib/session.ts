@@ -44,3 +44,12 @@ export const memberSession = reactiveLocal<string | null>("stanbase.session.memb
 
 /** Admin: active org id (default resolved by the admin shell). */
 export const adminOrg = reactiveLocal<string | null>("stanbase.session.org", null);
+
+/** The logged-in owner (dono) — set on self-service signup. */
+export interface OwnerSession {
+  userId: string;
+  accountId: string;
+  name: string;
+  email: string;
+}
+export const ownerSession = reactiveLocal<OwnerSession | null>("stanbase.session.owner", null);

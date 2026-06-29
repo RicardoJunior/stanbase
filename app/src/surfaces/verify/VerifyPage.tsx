@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { getMemberByCode, getOrg, getProfile, getTier } from "@/lib/api";
 import { verifyMemberToken } from "@/lib/verify-token";
 import { resolveThemeVars } from "@/lib/theme";
-import { formatMemberId } from "@/lib/ids";
+import { formatMemberId, normalizeMemberId } from "@/lib/ids";
 
 /**
  * Public member validation (§9). PII levels (Q70):
@@ -27,7 +27,15 @@ export default function VerifyPage() {
   const member = getMemberByCode(db, memberId);
   const org = member ? getOrg(db, member.orgId) : undefined;
   const token = params.get("token");
-  const tokenOk = token ? verifyMemberToken(token).valid : false;
+  const tokenResult = token ? verifyMemberToken(token) : null;
+  // a valid token only unlocks PII for the member it was issued to: the embedded
+  // memberId must match the member in the URL (prevents using A's token on B's page).
+  const tokenOk =
+    !!tokenResult &&
+    tokenResult.valid &&
+    !!member &&
+    normalizeMemberId(tokenResult.memberId) === normalizeMemberId(member.memberId);
+  const tokenFailed = !!tokenResult && !tokenOk;
 
   const themeVars = (org ? resolveThemeVars(org.theme, "dark") : {}) as CSSProperties;
 
@@ -86,6 +94,12 @@ export default function VerifyPage() {
           <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-[#efe9da]/50">
             {tokenOk ? (
               <><ShieldCheck size={13} style={{ color: config.color }} /> token assinado válido</>
+            ) : tokenFailed ? (
+              <><Lock size={13} />{" "}
+                {tokenResult && !tokenResult.valid && tokenResult.reason === "expired"
+                  ? "token expirado — faça o scan novamente"
+                  : "token inválido — visão pública mínima"}
+              </>
             ) : (
               <><Lock size={13} /> visão pública mínima — sem PII</>
             )}

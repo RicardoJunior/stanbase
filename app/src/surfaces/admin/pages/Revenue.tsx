@@ -50,7 +50,7 @@ export default function Revenue() {
       <SectionHead
         eyebrow="Financeiro"
         title="Receita & Pagamentos"
-        desc="Split all-in 7,99% + spread de parcelamento. Cada transação registra bruto, comissão, taxa PSP, financiamento e líquido da org."
+        desc="Comissão de 7,99% + spread de parcelamento. Cada transação registra bruto, comissão, taxa do PSP, financiamento e líquido da org."
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -79,7 +79,7 @@ export default function Revenue() {
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gold" /> Spread parcelamento {BRL(totalSpread)}</span>
             </div>
             <p className="text-xs text-muted mt-4">
-              O cliente paga 3,49% a.m. (modelo Hotmart); o Asaas antecipa a ~1,25% a.m.; a Stanbase retém o spread (~2,2% a.m. por mês financiado). A org recebe antecipado, sem absorver juros (§13.3.3).
+              O cliente paga 3,49% a.m.; o Asaas antecipa a ~1,25% a.m.; a Stanbase retém o spread (~2,2% a.m. por mês financiado). A org recebe antecipado, sem absorver juros.
             </p>
           </CardBody>
         </Card>
@@ -97,7 +97,7 @@ export default function Revenue() {
               </div>
             ))}
             <p className="text-xs text-muted pt-2 border-t border-line">
-              Repasse diário automático + saque on-demand (Q49). Reconciliação com o Asaas. REPLAN: split real.
+              Repasse diário automático + saque sob demanda. Reconciliação com o Asaas.
             </p>
           </CardBody>
         </Card>

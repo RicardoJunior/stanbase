@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ShieldCheck, Check } from "lucide-react";
-import { getTier, checkout } from "@/lib/api";
+import { getTier, checkout, getConnection } from "@/lib/api";
+import { processCharge } from "@/lib/payments";
 import { memberSession } from "@/lib/session";
 import { BRL, installmentOptions, installmentsAllowed, computeTransaction } from "@/lib/billing";
 import { useMemberOrg } from "../useMemberOrg";
@@ -31,17 +32,38 @@ export default function Checkout() {
   if (!org || !tier) return <div className="max-w-2xl mx-auto px-6 py-20 text-center text-muted">Tier não encontrado.</div>;
 
   const isFree = tier.price === 0;
+  const emailValid = /.+@.+\..+/.test(email.trim());
 
-  const submit = () => {
-    if (!name.trim()) return;
-    const res = checkout({
-      orgId: org.id,
-      tierId: tier.id,
-      method,
-      installments: canInstall ? installments : 1,
-      name: name.trim(),
-      email: email.trim() || undefined,
-    });
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!name.trim() || !emailValid || paying) return;
+    setError(null);
+    setPaying(true);
+    const inst = canInstall ? installments : 1;
+    if (!isFree && breakdown) {
+      const asaas = getConnection(db, org.id, "asaas");
+      const charge = await processCharge({
+        method,
+        installments: inst,
+        description: `Assinatura ${tier.name} · ${org.name}`,
+        externalReference: tier.id,
+        orgWalletId: asaas?.credentials?.wallet_id,
+        breakdown,
+        orgId: org.id,
+        tierId: tier.id,
+        customer: { name: name.trim(), email: email.trim() },
+      });
+      // only create the membership if the charge actually went through — otherwise
+      // we'd persist a member/transaction the PSP never registered.
+      if (charge.status === "failed") {
+        setPaying(false);
+        setError("Não foi possível processar o pagamento. Tente novamente.");
+        return;
+      }
+    }
+    const res = checkout({ orgId: org.id, tierId: tier.id, method, installments: inst, name: name.trim(), email: email.trim() });
     memberSession.set(res.member.id);
     navigate(`/m/${orgSlug}/app?welcome=1`);
   };
@@ -72,8 +94,9 @@ export default function Checkout() {
               />
             </div>
             <div>
-              <label className="block font-mono text-[0.66rem] tracking-[0.12em] uppercase text-muted mb-1.5">E-mail (opcional)</label>
+              <label className="block font-mono text-[0.66rem] tracking-[0.12em] uppercase text-muted mb-1.5">E-mail</label>
               <input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voce@email.com"
@@ -120,7 +143,7 @@ export default function Checkout() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-muted mt-1.5">Juros de 3,49% a.m. transparentes, pagos por você (modelo Hotmart).</p>
+                    <p className="text-xs text-muted mt-1.5">Juros de 3,49% a.m., já incluídos nas parcelas.</p>
                   </div>
                 )}
               </>
@@ -141,13 +164,8 @@ export default function Checkout() {
                 <div className="h-px bg-line my-2" />
                 <Row label="Total" value={BRL(breakdown.chargedTotal)} bold />
                 {breakdown.customerInterest > 0 && (
-                  <p className="text-xs text-muted">{installments}× de {BRL(breakdown.chargedTotal / installments)}</p>
+                  <p className="text-xs text-muted">{installments}× de {BRL(breakdown.chargedTotal / installments)} · juros já incluídos</p>
                 )}
-                <div className="rounded-xl border border-line p-3 mt-3 text-xs text-muted space-y-1" style={{ background: "var(--color-bg)" }}>
-                  <div className="flex justify-between"><span>Taxa Stanbase (7,99%)</span><span>{BRL(breakdown.baseCommission)}</span></div>
-                  <div className="flex justify-between"><span>{org.name} recebe</span><span>{BRL(breakdown.netOrg)}</span></div>
-                  <p className="pt-1 opacity-80">Sem letrinha miúda: você vê exatamente para onde vai cada real.</p>
-                </div>
               </div>
             ) : (
               <p className="text-muted text-sm">Plano gratuito — sem cobrança. Você ganha sua carteirinha e entra na comunidade.</p>
@@ -155,14 +173,19 @@ export default function Checkout() {
 
             <button
               onClick={submit}
-              disabled={!name.trim()}
+              disabled={!name.trim() || !emailValid || paying}
               className="w-full rounded-full px-5 py-3 font-medium mt-5 disabled:opacity-50"
               style={{ background: "var(--color-primary)", color: "var(--color-primary-contrast)" }}
             >
-              {isFree ? "Entrar grátis" : method === "pix" ? "Pagar com Pix" : "Pagar"}
+              {paying ? "Processando…" : isFree ? "Entrar grátis" : method === "pix" ? "Pagar com Pix" : "Pagar"}
             </button>
+            {error && (
+              <p className="text-sm text-center mt-3" style={{ color: "var(--color-danger, #b4453a)" }} role="alert">
+                {error}
+              </p>
+            )}
             <p className="flex items-center justify-center gap-1.5 text-xs text-muted mt-3">
-              <ShieldCheck size={13} /> pagamento simulado (REPLAN: Asaas split real)
+              <ShieldCheck size={13} /> pagamento seguro
             </p>
             <ul className="mt-4 space-y-1.5 text-xs text-muted">
               {["Carteirinha digital na Wallet", "Acesso imediato aos perks", "Cancele quando quiser"].map((b) => (

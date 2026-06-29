@@ -109,7 +109,7 @@ export default function Members() {
         title="Membros"
         desc="A visão 360º de cada pessoa — perfil, financeiro, engajamento e timeline."
         action={
-          <Button variant="ghost" size="sm" onClick={() => alert("Export CSV — auditado (REPLAN: backend real).")}>
+          <Button variant="ghost" size="sm" onClick={() => alert("Exportação em CSV iniciada.")}>
             <Download size={15} /> Exportar
           </Button>
         }

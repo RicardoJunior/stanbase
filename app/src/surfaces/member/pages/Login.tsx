@@ -65,7 +65,6 @@ export default function Login() {
           );
         })}
       </div>
-      <p className="text-center text-xs text-muted mt-6 font-mono">REPLAN: Supabase Auth (OTP + Google/Apple/X)</p>
     </main>
   );
 }

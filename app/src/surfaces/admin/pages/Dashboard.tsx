@@ -3,13 +3,14 @@ import { TrendingUp, AlertTriangle, Sparkles, ArrowUpRight } from "lucide-react"
 import { useStore } from "@/lib/store";
 import { computeDashboard, listMembers, getProfile, getMetrics, listTransactions } from "@/lib/api";
 import { BRL, PCT } from "@/lib/billing";
+import { Rocket, Share2 } from "lucide-react";
 import { SectionHead, Stat, Card, CardHeader, CardBody, Badge, Avatar } from "@/components/ui";
 import { useAdminOrg } from "../useAdminOrg";
 
 export default function Dashboard() {
-  const { orgId } = useAdminOrg();
+  const { org, orgId } = useAdminOrg();
   const db = useStore((d) => d);
-  if (!orgId) return null;
+  if (!orgId || !org) return null;
 
   const dash = computeDashboard(db, orgId);
   const members = listMembers(db, orgId);
@@ -20,6 +21,7 @@ export default function Dashboard() {
     .slice(0, 5);
   const recent = listTransactions(db, orgId).filter((t) => t.status === "paid").slice(0, 6);
   const maxTierMrr = Math.max(1, ...dash.tierDistribution.map((t) => t.mrr));
+  const memberUrl = `${window.location.origin}/m/${org.slug}`;
 
   return (
     <div>
@@ -28,6 +30,26 @@ export default function Dashboard() {
         title="Dashboard"
         desc="A saúde da sua base num relance — receita, membros e os sinais que a IA destacaria."
       />
+
+      {members.length === 0 && (
+        <div className="rounded-2xl border border-gold/40 bg-gold/5 p-5 mb-6 flex flex-wrap items-center gap-4">
+          <span className="w-11 h-11 rounded-xl bg-gold/15 flex items-center justify-center shrink-0">
+            <Rocket size={20} className="text-gold-deep" />
+          </span>
+          <div className="flex-1 min-w-[220px]">
+            <div className="font-display text-lg">Sua base está pronta 🎉</div>
+            <p className="text-muted text-sm">Compartilhe sua página de membro para converter os primeiros fãs. Tudo que você configurar aqui aparece lá na hora.</p>
+          </div>
+          <div className="flex gap-2">
+            <a href={memberUrl} target="_blank" rel="noreferrer" className="text-sm flex items-center gap-1.5 px-4 py-2 rounded-full bg-ink text-ivory">
+              <Share2 size={14} /> Ver página pública
+            </a>
+            <Link to="/admin/tiers" className="text-sm flex items-center gap-1.5 px-4 py-2 rounded-full border border-line hover:border-content/40">
+              Ajustar tiers
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Stat label="MRR" value={BRL(dash.mrr)} hint={<><TrendingUp size={12} className="inline" /> receita recorrente</>} tone="up" />

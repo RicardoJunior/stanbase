@@ -32,6 +32,8 @@ import {
 import { generateUniqueMemberId } from "@/lib/ids";
 import { computeTransaction, monthlyEquivalent, DEFAULT_BILLING, round2 } from "@/lib/billing";
 import { signMemberToken } from "@/lib/verify-token";
+import { newBlock } from "@/lib/blocks";
+import type { LandingBlock } from "@/types/domain";
 
 const NOW = new Date("2026-06-25T12:00:00Z").getTime();
 const DAY = 86400000;
@@ -77,6 +79,41 @@ export function buildSeed(): DBSnapshot {
     createdAt: daysAgo(540),
   };
 
+  const mkBlock = (type: string, content: Record<string, unknown>): LandingBlock => {
+    const b = newBlock(type);
+    b.content = { ...b.content, ...content };
+    return b;
+  };
+  const auroraLanding: LandingBlock[] = [
+    mkBlock("hero", {
+      eyebrow: "Membership oficial",
+      title: "A nação Aurora, mais perto do que nunca.",
+      subtitle: "Vire membro da Aurora Esports, ganhe sua carteirinha digital e acesse bastidores, comunidade e drops exclusivos.",
+    }),
+    mkBlock("stats", { items: [{ value: "12k", label: "torcedores" }, { value: "96%", label: "renovam" }, { value: "8", label: "títulos" }] }),
+    mkBlock("features", {
+      eyebrow: "Por que entrar",
+      heading: "Mais perto da line",
+      items: [
+        { title: "Bastidores", body: "Veja a line treinando e os bastidores dos campeonatos, só pra membros." },
+        { title: "Comunidade", body: "Discord e Telegram fechados com cargos por tier e a galera mais hardcore." },
+        { title: "Drops & eventos", body: "Lote de membro, meet & greet e drops de produto antes de todo mundo." },
+      ],
+    }),
+    mkBlock("perks", { heading: "Tudo que você desbloqueia" }),
+    mkBlock("testimonials", {
+      eyebrow: "Quem é da nação",
+      heading: "A voz da torcida",
+      items: [
+        { quote: "Ser Founder é fazer parte da história do time. Vale cada centavo.", author: "Pedro S.", role: "Founder" },
+        { quote: "Os bastidores e o Discord VIP são surreais. Não saio mais.", author: "Marina A.", role: "VIP" },
+      ],
+    }),
+    mkBlock("tiers", {}),
+    mkBlock("faq", {}),
+    mkBlock("cta", { title: "Entre para a nação Aurora", subtitle: "Vire membro hoje e desbloqueie bastidores, comunidade e drops." }),
+  ];
+
   const org: Organization = {
     id: orgId,
     accountId: account.id,
@@ -93,6 +130,7 @@ export function buildSeed(): DBSnapshot {
       darkEnabled: true,
       memberCardArt: "radial-gradient(130% 150% at 80% 0%, #2a1d52 0%, #15140f 58%)",
     },
+    landing: auroraLanding,
     createdAt: daysAgo(540),
   };
 
@@ -216,6 +254,7 @@ export function buildSeed(): DBSnapshot {
       photoUrl: null,
       email: chance(0.85) ? `${first.toLowerCase()}.${last.toLowerCase()}@email.com` : null,
       phone: chance(0.7) ? `+55 11 9${Math.floor(rng() * 9000 + 1000)}-${Math.floor(rng() * 9000 + 1000)}` : null,
+      address: chance(0.5) ? `${pick(["Rua", "Av."])} ${pick(["das Flores", "Brasil", "Paulista", "Central"])}, ${Math.floor(rng() * 900 + 100)} — São Paulo/SP` : null,
       social: { discord: `${first.toLowerCase()}#${Math.floor(rng() * 9000 + 1000)}` },
       attributes: { gamertag, jogo_principal: pick(["CS2", "Valorant", "LoL", "Rocket League"]) },
       consents: { email: chance(0.8), whatsapp: chance(0.6), push: chance(0.7), photoPublic: chance(0.25) },
@@ -334,6 +373,39 @@ export function buildSeed(): DBSnapshot {
     passes.push(pass);
   }
 
+  // ── connections (integrações já conectadas) ───────────────────
+  const connections = [
+    {
+      id: sid("conn"), orgId, provider: "asaas", status: "connected" as const,
+      accountLabel: "Aurora Esports (produção)", connectedAt: daysAgo(150), mappings: [],
+      credentials: { access_token: "••••a1b2", wallet_id: "a3f1c9e0-7b2d-4e1a-9c3f-aurora", environment: "production" },
+    },
+    {
+      id: sid("conn"), orgId, provider: "discord", status: "connected" as const,
+      accountLabel: "Servidor Aurora Esports", connectedAt: daysAgo(120),
+      mappings: [
+        { tierId: "tier_membro", resource: "Membro" },
+        { tierId: "tier_vip", resource: "VIP" },
+      ],
+    },
+    {
+      id: sid("conn"), orgId, provider: "youtube", status: "connected" as const,
+      accountLabel: "@auroraesports", connectedAt: daysAgo(90), mappings: [],
+    },
+    {
+      id: sid("conn"), orgId, provider: "telegram", status: "connected" as const,
+      accountLabel: "Aurora Insiders", connectedAt: daysAgo(80),
+      mappings: [{ tierId: "tier_membro", resource: "Aurora Insiders" }],
+    },
+  ];
+
+  const customDomains = [
+    {
+      id: sid("dom"), orgId, host: "membros.aurora.gg", target: "member" as const,
+      status: "active" as const, cfHostnameId: "cf_aurora_demo", createdAt: daysAgo(60),
+    },
+  ];
+
   // ── payouts ───────────────────────────────────────────────────
   const payouts: Payout[] = [
     { id: sid("po"), orgId, amount: round2(transactions.filter((t) => t.status === "paid").reduce((s, t) => s + t.netOrg, 0) * 0.12), period: "Jun/2026 (parcial)", status: "scheduled", createdAt: daysAgo(1) },
@@ -341,7 +413,7 @@ export function buildSeed(): DBSnapshot {
   ];
 
   return {
-    version: 2,
+    version: 6,
     platformBilling: DEFAULT_BILLING,
     accounts: [account],
     organizations: [org],
@@ -366,5 +438,7 @@ export function buildSeed(): DBSnapshot {
     tickets,
     checkins,
     achievements,
+    connections,
+    customDomains,
   };
 }

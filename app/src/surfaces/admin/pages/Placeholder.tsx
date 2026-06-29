@@ -10,12 +10,11 @@ export default function Placeholder({ module }: { module: string }) {
         <div className="flex justify-center text-gold-deep mb-4">
           <Construction size={32} strokeWidth={1.4} />
         </div>
-        <h3 className="font-display text-xl mb-2">Fora do corte da v0</h3>
+        <h3 className="font-display text-xl mb-2">Em breve</h3>
         <p className="text-muted max-w-md mx-auto text-[0.95rem]">
-          Este módulo entra no <strong>V1</strong> do roadmap (§90.4). A v0 entrega o loop de valor mínimo:
-          tiers &amp; perks, checkout com split e parcelamento, Passport e validação pública.
+          Este módulo está a caminho. Por enquanto, você já pode configurar tiers &amp; perks, a página do
+          membro, receber pagamentos e validar membros na portaria.
         </p>
-        <p className="text-muted/70 text-xs mt-4 font-mono">documentado em docs/plan/90-roadmap.md</p>
       </div>
     </div>
   );

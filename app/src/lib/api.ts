@@ -1,7 +1,26 @@
 /**
- * API facade — mirrors the public /v1 surface (§21) over the mock store.
+ * API facade — mirrors the public /v1 surface over the mock store.
  * Selectors take `db` so they compose inside useStore(); commands call mutate().
- * REPLAN: reimplement against supabase-js + Edge `/v1` with identical signatures.
+ *
+ * ── THIS MODULE IS THE BACKEND SWAP POINT ───────────────────────────────────
+ * The whole app reads/writes data only through this facade, so switching to the
+ * real backend is a change here (not in the screens). Modes are decided by env
+ * (see lib/supabase.ts → hasBackend()):
+ *   • No VITE_SUPABASE_URL  → prototype mode (default): everything below runs
+ *     against the localStorage store (lib/store.ts). UNCHANGED — do not break it.
+ *   • hasBackend()          → real mode:
+ *       - READS  go through supabase-js with RLS (scoped to app.current_org()).
+ *       - WRITES that touch money or secrets go to the Edge functions at
+ *         `${VITE_FUNCTIONS_URL}/v1-...` (service role, org_id filtered server-
+ *         side). The checkout/PSP write already routes there via lib/payments.ts
+ *         (processCharge → `/checkout`); the platform fee (7,99%) is computed
+ *         server-side and NEVER surfaced to a member.
+ *
+ * Migration is incremental: typed reference implementations of the main reads
+ * (listMembers, listTiers, getMember, computeDashboard) and writes (checkout)
+ * live in lib/api.remote.ts with the SAME signatures (async; the `db` arg is
+ * dropped since data comes from the wire). Migrate a screen by calling the
+ * remote twin behind hasBackend() instead of rewriting every selector here.
  */
 import type {
   DBSnapshot,
@@ -21,12 +40,22 @@ import type {
   Tag,
   PlatformBillingSettings,
   OrgTheme,
+  Connection,
+  PerkTypeKey,
+  LandingBlock,
+  Role,
+  OrgUser,
+  CustomDomain,
 } from "@/types/domain";
+import { buildDefaultLanding } from "@/lib/blocks";
 import { mutate } from "@/lib/store";
 import { generateUniqueMemberId, normalizeMemberId } from "@/lib/ids";
 import { computeTransaction, monthlyEquivalent, round2 } from "@/lib/billing";
 import { signMemberToken } from "@/lib/verify-token";
 import { resolvePerks } from "@/lib/entitlements";
+import { adminOrg, ownerSession } from "@/lib/session";
+import { CONNECTORS, connectorForPerkType, type Connector } from "@/lib/connectors";
+import type { VerticalTemplate } from "@/lib/templates";
 
 const NOW = () => new Date().toISOString();
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
@@ -202,7 +231,7 @@ export function checkout(input: CheckoutInput): CheckoutResult {
       };
       db.members.push(member);
       db.profiles.push({
-        memberId: member.id, name: input.name, photoUrl: null, email: input.email ?? null, phone: null,
+        memberId: member.id, name: input.name, photoUrl: null, email: input.email ?? null, phone: null, address: null,
         social: {}, attributes: {}, consents: { email: true, whatsapp: false, push: true, photoPublic: false },
       });
       db.interactions.push({
@@ -270,10 +299,32 @@ export function cancelMembership(memberId: string): void {
     db.subscriptions.filter((s) => s.memberId === memberId).forEach((s) => (s.status = "canceled"));
     db.passes.filter((p) => p.memberId === memberId).forEach((p) => (p.status = "inactive"));
     db.interactions.push({
-      id: uid("int"), orgId: m?.orgId ?? "", memberId, type: "tier_changed",
+      id: uid("int"), orgId: m?.orgId ?? "", memberId, type: "subscription_canceled",
       title: "Membership cancelado", detail: "Acesso até o fim do período pago", occurredAt: NOW(),
     });
     recomputeMemberMetrics(db, memberId);
+  });
+}
+
+// member self-service profile edits (Q36: member edits contacts/consents)
+export interface ProfilePatch {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  consents?: Partial<MemberProfile["consents"]>;
+  attributes?: Record<string, string>;
+}
+export function updateMemberProfile(memberId: string, patch: ProfilePatch): void {
+  mutate((db) => {
+    const p = db.profiles.find((x) => x.memberId === memberId);
+    if (!p) return;
+    if (patch.name !== undefined) p.name = patch.name;
+    if (patch.email !== undefined) p.email = patch.email || null;
+    if (patch.phone !== undefined) p.phone = patch.phone || null;
+    if (patch.address !== undefined) p.address = patch.address || null;
+    if (patch.consents) p.consents = { ...p.consents, ...patch.consents };
+    if (patch.attributes) p.attributes = { ...p.attributes, ...patch.attributes };
   });
 }
 
@@ -363,6 +414,9 @@ export function performCheckin(orgId: string, memberCode: string, operator: stri
 
     // already used ticket for this event?
     if (eventId) {
+      // the event must belong to this org — never validate against another org's event
+      const event = db.events.find((e) => e.id === eventId && e.orgId === orgId);
+      if (!event) return { result: "denied", member, message: "Evento não encontrado nesta organização." };
       const tk = db.tickets.find((t) => t.memberId === member.id && t.eventId === eventId);
       if (tk?.status === "used") return { result: "already_used", member, message: "Ingresso já utilizado (anti-reuso)." };
       if (tk) tk.status = "used";
@@ -393,8 +447,308 @@ export function updateOrgTheme(orgId: string, theme: Partial<OrgTheme>): void {
   });
 }
 
+/** General org config (name, vertical label, tagline, logo wordmark). */
+export function updateOrg(orgId: string, patch: Partial<Pick<Organization, "name" | "vertical" | "tagline" | "logoText">>): void {
+  mutate((db) => {
+    const o = db.organizations.find((x) => x.id === orgId);
+    if (o) Object.assign(o, patch);
+  });
+}
+
+// ── landing page builder (§24) ───────────────────────────────────
+export function getLanding(_db: DBSnapshot, org: Organization): LandingBlock[] {
+  return org.landing && org.landing.length > 0 ? org.landing : buildDefaultLanding(org);
+}
+
+export function updateOrgLanding(orgId: string, blocks: LandingBlock[]): void {
+  mutate((db) => {
+    const o = db.organizations.find((x) => x.id === orgId);
+    if (o) o.landing = blocks;
+  });
+}
+
+export function resetOrgLanding(orgId: string): void {
+  mutate((db) => {
+    const o = db.organizations.find((x) => x.id === orgId);
+    if (o) o.landing = buildDefaultLanding(o);
+  });
+}
+
+// ── domínio próprio (Cloudflare for SaaS, §23.1.8) ───────────────
+/** O alvo de CNAME que o membership aponta (fallback origin da plataforma). */
+export const DOMAIN_CNAME_TARGET = "cname.stanbase.app";
+
+export const listCustomDomains = (db: DBSnapshot, orgId: string): CustomDomain[] =>
+  db.customDomains.filter((d) => d.orgId === orgId);
+
+/** Roteamento host → org (domínio próprio ativo). */
+export const getOrgByHost = (db: DBSnapshot, host: string): Organization | undefined => {
+  const d = db.customDomains.find((x) => x.host === host.toLowerCase() && x.status === "active");
+  return d ? db.organizations.find((o) => o.id === d.orgId) : undefined;
+};
+
+export function addCustomDomain(orgId: string, host: string): CustomDomain {
+  return mutate((db) => {
+    const created: CustomDomain = {
+      id: uid("dom"), orgId, host: host.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+      target: "member", status: "pending_dns", cfHostnameId: null, createdAt: NOW(),
+    };
+    db.customDomains.push(created);
+    return created;
+  });
+}
+
+/** Avança a máquina de estados (mock do ciclo DNS → SSL → ativo). */
+export function verifyCustomDomain(id: string): void {
+  mutate((db) => {
+    const d = db.customDomains.find((x) => x.id === id);
+    if (!d) return;
+    const next: Record<CustomDomain["status"], CustomDomain["status"]> = {
+      pending_dns: "dns_ok",
+      dns_ok: "ssl_issued",
+      ssl_issued: "active",
+      active: "active",
+      error: "pending_dns",
+      disabled: "pending_dns",
+    };
+    if (d.status === "dns_ok") d.cfHostnameId = "cf_" + Math.random().toString(36).slice(2, 10);
+    d.status = next[d.status];
+  });
+}
+
+export function removeCustomDomain(id: string): void {
+  mutate((db) => {
+    db.customDomains = db.customDomains.filter((x) => x.id !== id);
+  });
+}
+
 export function updateBillingSettings(patch: Partial<PlatformBillingSettings>): void {
   mutate((db) => {
     db.platformBilling = { ...db.platformBilling, ...patch };
   });
+}
+
+// ── equipe & permissões (RBAC, Q16) ──────────────────────────────
+/** Permission presets per role (granular module perms). */
+export const ROLE_PRESETS: Record<Role, string[]> = {
+  owner: ["*"],
+  admin: ["dashboard", "crm.read", "crm.write", "tiers.write", "page.write", "revenue.read", "events.write", "integrations.write", "communication.write", "theme.write"],
+  operator: ["checkin", "validation"],
+};
+
+export const ROLE_LABEL: Record<Role, string> = { owner: "Owner", admin: "Admin", operator: "Operador (porta)" };
+export const ROLE_DESC: Record<Role, string> = {
+  owner: "Acesso total, inclusive faturamento, equipe e exclusão.",
+  admin: "Gerencia membros, tiers, página, receita e integrações.",
+  operator: "Só validação e check-in na portaria — não vê dados financeiros nem a base de membros.",
+};
+
+export const listOrgUsers = (db: DBSnapshot, orgId: string): OrgUser[] =>
+  db.orgUsers.filter((u) => u.orgId === orgId);
+
+export function inviteOrgUser(orgId: string, name: string, email: string, role: Role): OrgUser {
+  return mutate((db) => {
+    const created: OrgUser = {
+      id: uid("ou"), orgId, userId: uid("user"), name: name || email.split("@")[0],
+      email, role, permissions: [...ROLE_PRESETS[role]], status: "invited",
+    };
+    db.orgUsers.push(created);
+    return created;
+  });
+}
+
+export function updateOrgUserRole(orgUserId: string, role: Role): void {
+  mutate((db) => {
+    const u = db.orgUsers.find((x) => x.id === orgUserId);
+    if (u) {
+      u.role = role;
+      u.permissions = [...ROLE_PRESETS[role]];
+    }
+  });
+}
+
+export function activateOrgUser(orgUserId: string): void {
+  mutate((db) => {
+    const u = db.orgUsers.find((x) => x.id === orgUserId);
+    if (u) u.status = "active";
+  });
+}
+
+/** Remove a team member; refuses to remove the last owner. */
+export function removeOrgUser(orgUserId: string): { ok: boolean; reason?: string } {
+  return mutate((db) => {
+    const u = db.orgUsers.find((x) => x.id === orgUserId);
+    if (!u) return { ok: false, reason: "Não encontrado." };
+    if (u.role === "owner" && db.orgUsers.filter((x) => x.orgId === u.orgId && x.role === "owner").length <= 1) {
+      return { ok: false, reason: "Não dá para remover o único owner. Transfira a posse antes." };
+    }
+    db.orgUsers = db.orgUsers.filter((x) => x.id !== orgUserId);
+    return { ok: true };
+  });
+}
+
+// ── self-service signup: criar conta + org (§5 onboarding) ───────
+export function slugify(name: string): string {
+  const s = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // strip diacritics
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return s || "minha-base";
+}
+
+function uniqueSlug(db: DBSnapshot, base: string): string {
+  let slug = slugify(base);
+  let n = 2;
+  while (db.organizations.some((o) => o.slug === slug)) slug = `${slugify(base)}-${n++}`;
+  return slug;
+}
+
+export interface CreateOrgInput {
+  ownerName: string;
+  ownerEmail: string;
+  orgName: string;
+  slug?: string;
+  vertical: string;
+  logoText: string;
+  tagline: string;
+  theme: OrgTheme;
+  tiers: { name: string; price: number; period: Tier["period"]; color: string; capacity: number | null; perkNames: string[] }[];
+  perks: { type: PerkTypeKey; name: string; config: Record<string, string | number> }[];
+  connectProviders: string[];
+}
+
+/** Build a CreateOrgInput pre-filled from a vertical template (the onboarding seed). */
+export function inputFromTemplate(t: VerticalTemplate): Omit<CreateOrgInput, "ownerName" | "ownerEmail" | "orgName"> {
+  return {
+    vertical: t.vertical,
+    logoText: t.logoText,
+    tagline: t.tagline,
+    theme: { ...t.theme },
+    tiers: t.tiers.map((ti) => ({ name: ti.name, price: ti.price, period: ti.period, color: ti.color, capacity: ti.capacity, perkNames: [...ti.perks] })),
+    perks: t.perks.map((p) => ({ type: p.type, name: p.name, config: { ...p.config } })),
+    connectProviders: [...t.suggestedConnections],
+  };
+}
+
+export interface CreateOrgResult {
+  orgId: string;
+  slug: string;
+}
+
+/** Create a brand-new account + org with tiers/perks/connections, log the owner in. */
+export function createAccountAndOrg(input: CreateOrgInput): CreateOrgResult {
+  const result = mutate((db) => {
+    const userId = uid("user");
+    const accountId = uid("acc");
+    const orgId = uid("org");
+    const slug = uniqueSlug(db, input.slug || input.orgName);
+    const now = NOW();
+
+    db.accounts.push({ id: accountId, name: input.ownerName, ownerUserId: userId, createdAt: now });
+    db.organizations.push({
+      id: orgId, accountId, slug, name: input.orgName, vertical: input.vertical,
+      logoText: input.logoText || input.orgName.toLowerCase(), tagline: input.tagline,
+      status: "active", theme: input.theme,
+      landing: buildDefaultLanding({ name: input.orgName, tagline: input.tagline }),
+      createdAt: now,
+    });
+    db.orgUsers.push({
+      id: uid("ou"), orgId, userId, name: input.ownerName, email: input.ownerEmail,
+      role: "owner", permissions: ["*"],
+    });
+
+    // perks (name → id)
+    const perkIdByName = new Map<string, string>();
+    for (const p of input.perks) {
+      const id = uid("perk");
+      perkIdByName.set(p.name, id);
+      db.perks.push({ id, orgId, mode: "live", type: p.type, name: p.name, config: p.config, status: "active" });
+    }
+    // tiers (resolve perk names → ids)
+    input.tiers.forEach((ti, i) => {
+      db.tiers.push({
+        id: uid("tier"), orgId, mode: "live", name: ti.name, description: "",
+        price: ti.price, currency: "BRL", period: ti.period, position: i, color: ti.color,
+        capacity: ti.capacity, installmentsEnabled: ti.period !== "monthly",
+        perkIds: ti.perkNames.map((n) => perkIdByName.get(n)).filter((x): x is string => !!x),
+        status: "active",
+      });
+    });
+    // connections (mock-connected)
+    for (const provider of input.connectProviders) {
+      db.connections.push({
+        id: uid("conn"), orgId, provider, status: "connected",
+        accountLabel: `${input.orgName} (${provider})`, connectedAt: now, mappings: [],
+      });
+    }
+
+    return { orgId, slug, userId, accountId };
+  });
+
+  ownerSession.set({ userId: result.userId, accountId: result.accountId, name: input.ownerName, email: input.ownerEmail });
+  adminOrg.set(result.orgId);
+  return { orgId: result.orgId, slug: result.slug };
+}
+
+// ── integrações (framework §20.1) ────────────────────────────────
+export const listConnectors = (): Connector[] => CONNECTORS;
+export const listConnections = (db: DBSnapshot, orgId: string): Connection[] =>
+  db.connections.filter((c) => c.orgId === orgId);
+export const getConnection = (db: DBSnapshot, orgId: string, provider: string): Connection | undefined =>
+  db.connections.find((c) => c.orgId === orgId && c.provider === provider);
+
+export function connectIntegration(
+  orgId: string,
+  provider: string,
+  accountLabel: string,
+  credentials: Record<string, string> = {}
+): void {
+  mutate((db) => {
+    const existing = db.connections.find((c) => c.orgId === orgId && c.provider === provider);
+    if (existing) {
+      existing.status = "connected";
+      existing.accountLabel = accountLabel;
+      existing.connectedAt = NOW();
+      existing.credentials = { ...existing.credentials, ...credentials };
+    } else {
+      db.connections.push({ id: uid("conn"), orgId, provider, status: "connected", accountLabel, connectedAt: NOW(), mappings: [], credentials });
+    }
+  });
+}
+
+export function disconnectIntegration(orgId: string, provider: string): void {
+  mutate((db) => {
+    db.connections = db.connections.filter((c) => !(c.orgId === orgId && c.provider === provider));
+  });
+}
+
+export function setTierMapping(orgId: string, provider: string, tierId: string, resource: string): void {
+  mutate((db) => {
+    const conn = db.connections.find((c) => c.orgId === orgId && c.provider === provider);
+    if (!conn) return;
+    const m = conn.mappings.find((x) => x.tierId === tierId);
+    if (!resource.trim()) {
+      conn.mappings = conn.mappings.filter((x) => x.tierId !== tierId);
+    } else if (m) {
+      m.resource = resource;
+    } else {
+      conn.mappings.push({ tierId, resource });
+    }
+  });
+}
+
+/** Provisioning state of a perk: which connector it needs and whether it's connected. */
+export interface PerkProvision {
+  connector?: Connector;
+  requiresConnection: boolean;
+  connected: boolean;
+}
+export function perkProvision(db: DBSnapshot, orgId: string, perkType: PerkTypeKey): PerkProvision {
+  const connector = connectorForPerkType(perkType);
+  if (!connector) return { connector: undefined, requiresConnection: false, connected: true };
+  const conn = getConnection(db, orgId, connector.provider);
+  return { connector, requiresConnection: true, connected: conn?.status === "connected" };
 }

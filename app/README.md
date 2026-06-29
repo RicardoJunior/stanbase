@@ -5,8 +5,10 @@ construído a partir de `../docs`. Demonstra: dono cria tiers/perks → fã faz 
 **matemática real de comissão/parcelamento** → vira membro com **Member ID** → ganha
 carteirinha + perks → **Passport** com QR → **validação pública** → **check-in** na portaria.
 
-> v0 deliberada: **um app React, sem serviços externos**. Toda a lógica de domínio é real;
-> a infraestrutura (Supabase, Asaas, Wallet, OAuth) é mockada e marcada como **REPLAN**.
+> O front-end roda **mock-backed por padrão** (store em `localStorage`) para a demo. A infra real
+> já existe e é plugável por env (`VITE_SUPABASE_URL`/`ANON_KEY` → `hasBackend()` em `src/lib/supabase.ts`):
+> **app servido pelo Cloudflare Pages**, **domínios próprios via Cloudflare for SaaS**, **backend + DB no
+> Supabase Cloud** (Edge Functions `/v1` em `../supabase/functions`, RLS por `org_id`, Asaas real).
 
 ## Como rodar
 
@@ -18,25 +20,31 @@ npm test         # golden numbers de billing + Member ID (27 testes)
 npm run build    # typecheck + build de produção
 ```
 
-## Superfícies (uma SPA, quatro superfícies por rota)
+## Superfícies (uma SPA, por rota)
 
 | Rota | O quê |
 |---|---|
-| `/` | Landing institucional (port fiel de `stanbase.html`) |
-| `/admin` | Painel padronizado do dono (Dashboard, CRM, Tiers&Perks, Receita, Eventos, Validação, Config/Tema). Chrome da identidade, **não temável**. |
-| `/m/aurora` | Front de membro **temável** (white-label): planos, checkout, área do membro, passport, perfil |
+| `/` | Landing institucional (port fiel de `stanbase.html`) — CTA **"Criar minha base"** |
+| `/onboarding` | **Cadastro self-service + wizard** que monta o membership (você → vertical → marca → tiers → perks+integrações → publicar) |
+| `/admin` | Painel padronizado do dono (Dashboard, CRM, Tiers&Perks, **Página do membro** (page builder), Receita, Eventos, Validação, **Integrações**, Config/Tema). Chrome da identidade, **não temável**. |
+| `/m/:slug` | Front de membro **temável** (white-label): **landing montada por blocos**, planos, checkout, área do membro, passport, perfil |
 | `/verify/:memberId` | Validação pública (níveis L0/L1/L2 de PII) |
 | `/checkin` | Console de portaria (operador) |
 | `/superadmin` | Staff Stanbase: orgs, billing global, GMV |
 
-Roteiro de demo: `/superadmin` → abrir Aurora → `/admin` (tiers, receita, CRM) →
-`/m/aurora` → assinar um plano → ver carteirinha/perks → `/m/aurora/passport` → clicar no QR
-→ `/verify/...` → `/checkin` valida o Member ID.
+Roteiro de demo (criar a própria base): `/` → **Criar minha base** → wizard (escolha um modelo
+de vertical) → publicar → admin novo com tiers configurados → **Integrações** (conectar Discord/etc.)
+→ `/m/{slug}` assinar um plano → carteirinha/perks → `/m/{slug}/passport` → QR → `/verify/...` → `/checkin`.
 
+Há uma org demo pré-pronta (**Aurora Esports**, `/m/aurora`) com membros, transações e integrações já conectadas.
 Botão **"Resetar demo"** (rodapé do admin) recria os dados de fábrica.
 
 ## O que é REAL (lógica de domínio correta)
 
+- **Cadastro + onboarding** (`createAccountAndOrg` em `src/lib/api.ts`, templates em `src/lib/templates.ts`) — cria conta+org+tiers+perks+conexões a partir de **10 modelos de vertical** prontos (esports, clube de carro, time/torcida, balada, creator, empresa, fitness, curso/escola, igreja/comunidade, podcast/newsletter), slug único, owner logado.
+- **Domínio próprio** (`src/lib/api.ts` `addCustomDomain`/`verifyCustomDomain`, Edge `../supabase/functions/v1-domains`) — white-label via Cloudflare for SaaS: CNAME → `cname.stanbase.app`, emissão de SSL automática, máquina de estados `pending_dns→dns_ok→ssl_issued→active`; configurável em **Config → Domínio**.
+- **Configurações do membership** (`surfaces/admin/pages/Settings.tsx`) — Geral (nome/vertical/tagline/logo + URL do membro), Marca & Tema, Domínio, Equipe, Faturamento, LGPD.
+- **Page builder da LP** (`src/lib/blocks.ts` + `surfaces/member/blocks/`, editor em `surfaces/admin/pages/PageBuilder.tsx`) — catálogo curado de blocos (hero, texto, texto+imagem, imagem, destaques, perks, planos, números, depoimentos, FAQ, vídeo, galeria, CTA, divisor); add/reorder/edit/delete com preview ao vivo; publica em `org.landing` (§24, com limites de customização do §23.1.4).
 - **Member ID** (`src/lib/ids.ts`) — §7.5: CSPRNG, alfabeto sem ambíguos, padrão LNLNLNLN, único, blocklist.
 - **Billing** (`src/lib/billing.ts`) — §13.3: comissão base 7,99%, tabela Price a 3,49% a.m.,
   parcelamento ≤12× só em tri/semestral/anual, spread vs. antecipação. Golden numbers testados
@@ -49,16 +57,17 @@ Botão **"Resetar demo"** (rodapé do admin) recria os dados de fábrica.
 
 | Área | v0 | Replanejar para |
 |---|---|---|
-| Banco / RLS | store em `localStorage` (`src/lib/store.ts`) | Supabase Postgres + RLS por `org_id` |
-| API | fachada `src/lib/api.ts` (mesma assinatura) | Edge Functions `/v1` + OpenAPI/Swagger |
-| Pagamento | checkout simulado (matemática real) | Asaas: split, subcontas, webhooks, golden tests de centavos |
+| Banco / RLS | store em `localStorage` (`src/lib/store.ts`) por padrão | **Supabase Postgres + RLS por `org_id` já escrito** (`../supabase/migrations`); plugável por env |
+| API | fachada `src/lib/api.ts` (mesma assinatura) | **Edge Functions `/v1` já escritas** (`../supabase/functions/v1-*`: members, tiers, subscriptions, events, connections, theme, team, dashboard, passport, domains) + `api.remote.ts` |
+| Pagamento | checkout simulado (matemática real) | **adapter Asaas real + Edge `checkout`/`asaas-webhook` escritos**; cobrança ao vivo exige deploy (`supabase login` + ref) |
 | Passport | render do card + "Adicionar à Wallet" mock | `.pkpass` Apple (certificado) + Google Wallet JWT |
-| Auth | persona picker / social mock | Supabase Auth (OTP + Google/Apple/X) |
+| Auth / cadastro | signup sem senha + persona picker (mock) | Supabase Auth (OTP + Google/Apple/X) |
+| Integrações | **funcionais mock** (`src/lib/connectors.ts` + `connectIntegration`): catálogo, connect/disconnect/map, estado de provisão refletido nos perks | OAuth real + provisão/sync (grant de cargo etc.) + reconcile de drift |
 | QR | faux-QR (não escaneável) clicável | encoder real (`qrcode`) + JWT assinado em Edge |
 | Fontes | Google Fonts via CDN | self-host woff2 (LGPD §23.1.9) |
 | Drag-and-drop de tiers | setas ↑/↓ | dnd real |
 | Preview de tema | `<MemberCard/>` + amostra | iframe do member-app real + republish de passes |
-| Fora da v0 | IA, MCP, webhooks, integrações (Discord/YouTube/Sympla), conteúdo, comunidade, comunicação, Hall of Fame, eventos avançados, domínio próprio + SSL, i18n en-US/es | Roadmap V1/V2/V3 (`docs/plan/90-roadmap.md`) |
+| Fora da v0 | IA, MCP, webhooks, conteúdo, comunidade, Hall of Fame, eventos avançados, i18n en-US/es | Roadmap V1/V2/V3 (`docs/plan/90-roadmap.md`) |
 
 ## Estrutura
 

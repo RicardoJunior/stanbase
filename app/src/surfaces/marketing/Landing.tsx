@@ -71,8 +71,8 @@ export default function Landing() {
             <a href="#ia">IA</a>
             <a href="#preco">Preço</a>
           </div>
-          <Link className="btn btn-gold" to="/m/aurora">
-            Ver demo
+          <Link className="btn btn-gold" to="/onboarding">
+            Criar minha base
           </Link>
         </div>
       </nav>
@@ -91,11 +91,11 @@ export default function Landing() {
               creators, com proximidade real, receita recorrente e uma IA que conhece cada fã pelo nome.
             </p>
             <div className="hero-cta">
-              <Link className="btn btn-gold" to="/m/aurora">
-                Ver área de membro
+              <Link className="btn btn-gold" to="/onboarding">
+                Criar minha base
               </Link>
-              <Link className="btn btn-ghost" to="/admin">
-                Entrar no admin
+              <Link className="btn btn-ghost" to="/m/aurora">
+                Ver demo de membro
               </Link>
             </div>
             <p className="hero-note">
@@ -359,8 +359,8 @@ export default function Landing() {
             Mostramos em 20 minutos como a sua base de fãs vira uma base de membros — com a sua marca, no
             seu mundo.
           </p>
-          <Link className="btn btn-gold" to="/admin" style={{ padding: "15px 34px", fontSize: "1rem" }}>
-            Abrir o admin demo
+          <Link className="btn btn-gold" to="/onboarding" style={{ padding: "15px 34px", fontSize: "1rem" }}>
+            Criar minha base agora
           </Link>
         </div>
       </section>
@@ -392,6 +392,7 @@ export default function Landing() {
             </div>
             <div className="foot-col">
               <h4>Demo</h4>
+              <Link to="/onboarding">Criar minha base</Link>
               <Link to="/admin">Admin do dono</Link>
               <Link to="/m/aurora">Área de membro</Link>
               <Link to="/superadmin">Stanbase staff</Link>

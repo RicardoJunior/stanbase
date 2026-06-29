@@ -20,3 +20,5 @@ export { Table } from "./Table";
 export type { Column } from "./Table";
 export { Dialog } from "./Dialog";
 export { Tabs } from "./Tabs";
+export { ColorField } from "./ColorField";
+export { Combobox } from "./Combobox";

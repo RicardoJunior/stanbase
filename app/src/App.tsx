@@ -5,12 +5,16 @@ import MemberApp from "@/surfaces/member/MemberApp";
 import VerifyPage from "@/surfaces/verify/VerifyPage";
 import CheckinPage from "@/surfaces/verify/CheckinPage";
 import SuperadminApp from "@/surfaces/superadmin/SuperadminApp";
+import OnboardingApp from "@/surfaces/onboarding/OnboardingApp";
 
 export default function App() {
   return (
     <Routes>
       {/* public marketing landing — faithful port of stanbase.html */}
       <Route path="/" element={<Landing />} />
+
+      {/* self-service signup → guided onboarding */}
+      <Route path="/onboarding" element={<OnboardingApp />} />
 
       {/* owner's standardized admin (identity chrome, not themable) */}
       <Route path="/admin/*" element={<AdminApp />} />

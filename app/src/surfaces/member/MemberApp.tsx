@@ -1,7 +1,8 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { NavLink, Route, Routes, useParams } from "react-router-dom";
 import { Moon, Sun, LogOut, CreditCard } from "lucide-react";
 import { resolveThemeVars } from "@/lib/theme";
+import { loadGoogleFont } from "@/lib/google-fonts";
 import { memberSession } from "@/lib/session";
 import { getProfile } from "@/lib/api";
 import { useMemberOrg } from "./useMemberOrg";
@@ -67,6 +68,11 @@ export default function MemberApp() {
   const { org } = useMemberOrg();
   const [override, setOverride] = useState<"light" | "dark" | null>(null);
 
+  useEffect(() => {
+    loadGoogleFont(org?.theme.fontDisplay);
+    loadGoogleFont(org?.theme.fontBody);
+  }, [org?.theme.fontDisplay, org?.theme.fontBody]);
+
   if (!org) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg text-content" data-theme="light">
@@ -99,7 +105,7 @@ export default function MemberApp() {
           <span className="flex items-center gap-2">
             <CreditCard size={15} /> {org.name} · membership por <b className="font-display">stanbase</b>
           </span>
-          <span className="font-mono text-xs">white-label · tema da org · v0</span>
+          <span className="text-xs">© {new Date().getFullYear()} {org.name}</span>
         </div>
       </footer>
     </div>

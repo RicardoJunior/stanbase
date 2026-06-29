@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { Gift, Wallet, ArrowUpRight, CalendarDays, Sparkles } from "lucide-react";
-import { getProfile, getTier, memberPerks, listTiers, listEvents } from "@/lib/api";
+import { getProfile, getTier, memberPerks, listTiers, listEvents, perkProvision } from "@/lib/api";
 import { perkType } from "@/lib/perk-catalog";
 import { MemberCard } from "@/components/MemberCard";
 import { useMemberOrg } from "../useMemberOrg";
@@ -65,26 +65,35 @@ export default function MemberArea() {
           <div>
             <h2 className="font-display text-xl mb-3 flex items-center gap-2"><Gift size={18} style={{ color: "var(--color-accent)" }} /> Seus perks</h2>
             <div className="space-y-2">
-              {perks.map((pk) => (
-                <div key={pk.id} className="flex items-center gap-3 rounded-xl border border-line px-4 py-3" style={{ background: "var(--color-surface)" }}>
-                  <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-                    <Gift size={16} style={{ color: "var(--color-accent)" }} />
-                  </span>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{pk.name}</div>
-                    <div className="text-xs text-muted">{perkType(pk.type)?.label}</div>
+              {perks.map((pk) => {
+                const prov = perkProvision(db, org.id, pk.type);
+                return (
+                  <div key={pk.id} className="flex items-center gap-3 rounded-xl border border-line px-4 py-3" style={{ background: "var(--color-surface)" }}>
+                    <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                      <Gift size={16} style={{ color: "var(--color-accent)" }} />
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{pk.name}</div>
+                      <div className="text-xs text-muted">{perkType(pk.type)?.label}</div>
+                    </div>
+                    {prov.requiresConnection && !prov.connected ? (
+                      <span className="text-[0.62rem] font-mono uppercase tracking-wide text-muted">em breve</span>
+                    ) : (
+                      <span className="text-[0.62rem] font-mono uppercase tracking-wide flex items-center gap-1" style={{ color: "var(--color-success, #3f7d4e)" }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-success, #3f7d4e)" }} /> ativo
+                      </span>
+                    )}
                   </div>
-                  <ArrowUpRight size={15} className="text-muted" />
-                </div>
-              ))}
+                );
+              })}
               {perks.length === 0 && (
                 <p className="text-muted text-sm rounded-xl border border-line px-4 py-3">Seu tier ainda não tem perks. Faça upgrade para liberar benefícios.</p>
               )}
             </div>
           </div>
 
-          {/* upgrade */}
-          {nextTier && (
+          {/* upgrade — não oferecer a membros cancelados */}
+          {nextTier && member.status !== "canceled" && (
             <div className="rounded-2xl border p-5" style={{ borderColor: nextTier.color, background: "var(--color-surface)" }}>
               <div className="eyebrow" style={{ color: nextTier.color }}>Próximo nível</div>
               <h3 className="font-display text-xl mt-1">Suba para {nextTier.name}</h3>

@@ -115,7 +115,7 @@ export default function CheckinPage() {
         )}
 
         <p className="text-center text-[0.7rem] text-[#efe9da]/40 mt-10 font-mono">
-          grace = amarelo, libera (Q69) · anti-reuso de ingresso · operador nunca vê financeiro/base (Q15)
+em pendência de pagamento o membro passa com aviso amarelo · anti-reuso de ingresso · o operador não vê dados financeiros
         </p>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ChevronUp, ChevronDown, Pencil, Plus, Gift, Plug, Archive } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronUp, ChevronDown, Pencil, Plus, Gift, Plug, Archive, Check } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { listTiers, listPerks, saveTier, reorderTiers, archiveTier, createPerk } from "@/lib/api";
+import { listTiers, listPerks, saveTier, reorderTiers, archiveTier, createPerk, perkProvision } from "@/lib/api";
 import { BRL, installmentsAllowed, installmentOptions } from "@/lib/billing";
 import { PERK_CATALOG, perkType } from "@/lib/perk-catalog";
 import { Card, CardHeader, CardBody, SectionHead, Button, Badge, Dialog, Field, Input, Select, Label } from "@/components/ui";
@@ -67,7 +68,7 @@ export default function Tiers() {
 
                   {inst && (
                     <div className="text-xs text-muted mt-2">
-                      ou até <strong>{inst.n}×</strong> de {BRL(inst.installmentValue)} (juros 3,49% a.m., pass-through)
+                      ou até <strong>{inst.n}×</strong> de {BRL(inst.installmentValue)} (juros de 3,49% a.m.)
                     </div>
                   )}
 
@@ -93,8 +94,7 @@ export default function Tiers() {
             );
           })}
           <p className="text-xs text-muted">
-            Acúmulo: tiers superiores herdam os perks dos inferiores (§12.2). Reordenar muda a herança.
-            <br />REPLAN: drag-and-drop real (aqui: setas ↑/↓).
+            Acúmulo: tiers superiores herdam os perks dos inferiores. Reordene com as setas ↑/↓.
           </p>
         </div>
 
@@ -109,12 +109,19 @@ export default function Tiers() {
             <CardBody className="space-y-2">
               {perks.map((p) => {
                 const pt = perkType(p.type);
+                const prov = perkProvision(db, orgId, p.type);
                 return (
                   <div key={p.id} className="py-2 border-b border-line/50 last:border-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{p.name}</span>
-                      {pt?.integration && (
-                        <Badge tone="primary"><Plug size={9} /> {pt.integration}</Badge>
+                      {prov.requiresConnection && (
+                        prov.connected ? (
+                          <Badge tone="success"><Check size={9} /> {prov.connector?.label}</Badge>
+                        ) : (
+                          <Link to="/admin/integrations">
+                            <Badge tone="warning"><Plug size={9} /> conectar {prov.connector?.label}</Badge>
+                          </Link>
+                        )
                       )}
                     </div>
                     <div className="text-xs text-muted">{pt?.label}</div>
@@ -124,7 +131,7 @@ export default function Tiers() {
             </CardBody>
           </Card>
           <p className="text-xs text-muted mt-3">
-            Adicionar uma integração = registrar um connector + perk-type no catálogo → aparece para todas as orgs (§20.1).
+            Perks que dependem de uma ferramenta mostram o status da conexão — configure em Integrações.
           </p>
         </div>
       </div>
@@ -191,7 +198,7 @@ function TierEditor({
         <p className="text-xs text-muted -mt-2 mb-4">
           {installmentsAllowed(period)
             ? "Parcelamento habilitado (até 12×, juros ao cliente)."
-            : "Período mensal não permite parcelamento (§13.3.2)."}
+            : "Período mensal não permite parcelamento."}
         </p>
       )}
 

@@ -1,0 +1,56 @@
+# Supabase project config (stanbase). `supabase link` sets the real project ref.
+project_id = "stanbase"
+
+[db]
+major_version = 15
+
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+
+[auth]
+enabled = true
+# Custom Access Token Hook injects org_id/account_id/role into the JWT (see README).
+
+# ── Edge Functions ──────────────────────────────────────────────
+# Public endpoints (no Supabase JWT needed); they authenticate by their own rules.
+[functions.checkout]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.v1]
+verify_jwt = false
+
+# /v1 resource endpoints (authenticated by API key — see _shared/auth.ts).
+[functions.v1-members]
+verify_jwt = false
+
+[functions.v1-tiers]
+verify_jwt = false
+
+[functions.v1-subscriptions]
+verify_jwt = false
+
+[functions.v1-events]
+verify_jwt = false
+
+[functions.v1-connections]
+verify_jwt = false
+
+[functions.v1-theme]
+verify_jwt = false
+
+[functions.v1-team]
+verify_jwt = false
+
+[functions.v1-dashboard]
+verify_jwt = false
+
+[functions.v1-passport]
+verify_jwt = false
+
+[functions.v1-domains]
+verify_jwt = false

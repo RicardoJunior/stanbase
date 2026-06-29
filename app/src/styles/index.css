@@ -69,6 +69,23 @@
   }
 }
 
+/* react-colorful sizing inside our popover */
+.sb-colorpicker .react-colorful {
+  width: 100%;
+  height: 170px;
+}
+.sb-colorpicker .react-colorful__saturation {
+  border-radius: 10px 10px 0 0;
+}
+.sb-colorpicker .react-colorful__hue {
+  height: 16px;
+  border-radius: 0 0 10px 10px;
+}
+.sb-colorpicker .react-colorful__pointer {
+  width: 18px;
+  height: 18px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

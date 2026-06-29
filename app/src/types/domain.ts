@@ -36,11 +36,21 @@ export interface OrgTheme {
   /** semantic-layer overrides (deep-merged over identity defaults). */
   primary?: string;
   accent?: string;
+  /** page background per mode (surface/text are derived). */
+  bgLight?: string;
+  bgDark?: string;
   fontDisplay?: string;
   fontBody?: string;
   defaultMode?: "light" | "dark" | "system";
   darkEnabled?: boolean;
   memberCardArt?: string; // css background for the member card
+}
+
+/** A composable block on the member landing page (page builder, §24). */
+export interface LandingBlock {
+  id: string;
+  type: string; // BlockType key (see lib/blocks.ts)
+  content: Record<string, any>;
 }
 
 export interface Organization {
@@ -53,6 +63,8 @@ export interface Organization {
   tagline: string;
   status: "active" | "suspended" | "deleted";
   theme: OrgTheme;
+  /** ordered blocks of the member landing page (undefined = render default). */
+  landing?: LandingBlock[];
   createdAt: string;
 }
 
@@ -64,6 +76,7 @@ export interface OrgUser {
   email: string;
   role: Role;
   permissions: string[]; // granular module perms; presets per role
+  status?: "active" | "invited"; // invited = convite pendente
 }
 
 // ── tiers & perks ─────────────────────────────────────────────────
@@ -137,6 +150,7 @@ export interface MemberProfile {
   photoUrl: string | null;
   email: string | null;
   phone: string | null;
+  address: string | null;
   social: Record<string, string>;
   attributes: Record<string, string>; // custom per-vertical fields
   consents: { email: boolean; whatsapp: boolean; push: boolean; photoPublic: boolean };
@@ -172,6 +186,7 @@ export interface Note {
 
 export type InteractionType =
   | "subscription_started"
+  | "subscription_canceled"
   | "tier_changed"
   | "payment_succeeded"
   | "payment_failed"
@@ -301,6 +316,37 @@ export interface Checkin {
   result: "ok" | "grace" | "denied" | "override";
 }
 
+// ── integrações (framework de plugins §20.1) ──────────────────────
+export type ConnectionStatus = "connected" | "disconnected" | "error";
+
+export interface TierMapping {
+  tierId: string;
+  resource: string; // ex.: nome do cargo Discord, grupo Telegram
+}
+
+export interface Connection {
+  id: string;
+  orgId: string;
+  provider: string; // chave do connector (discord, youtube, ...)
+  status: ConnectionStatus;
+  accountLabel: string; // "Servidor Aurora", "@aurora", conta conectada
+  connectedAt: string | null;
+  mappings: TierMapping[]; // tier → recurso externo
+  /** credenciais por campo (segredos mascarados; cifradas no servidor em produção). */
+  credentials?: Record<string, string>;
+}
+
+/** Domínio próprio do membership via Cloudflare for SaaS (§23.1.8). */
+export interface CustomDomain {
+  id: string;
+  orgId: string;
+  host: string; // membros.suacomunidade.com (lowercase)
+  target: "member" | "verify";
+  status: "pending_dns" | "dns_ok" | "ssl_issued" | "active" | "error" | "disabled";
+  cfHostnameId: string | null; // Cloudflare custom_hostname id
+  createdAt: string;
+}
+
 // ── achievements (hall of fame, light) ────────────────────────────
 export interface Achievement {
   id: string;
@@ -335,4 +381,6 @@ export interface DBSnapshot {
   tickets: Ticket[];
   checkins: Checkin[];
   achievements: Achievement[];
+  connections: Connection[];
+  customDomains: CustomDomain[];
 }

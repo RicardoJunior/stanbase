@@ -30,7 +30,7 @@ export default function Validation() {
       <SectionHead
         eyebrow="Portaria"
         title="Validação & Check-in"
-        desc="Escaneie o QR ou digite o Member ID. Em grace (pagamento pendente) o membro passa com aviso amarelo (Q69)."
+        desc="Escaneie o QR ou digite o Member ID. Com pagamento pendente, o membro passa com aviso amarelo."
         action={
           <Link to="/checkin" target="_blank">
             <Button variant="ghost" size="sm"><ExternalLink size={15} /> Modo operador (tela cheia)</Button>
