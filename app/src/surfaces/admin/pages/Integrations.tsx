@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plug, Check, Link2, Gift, ShieldCheck, ExternalLink, KeyRound, Lock, ArrowRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import {
@@ -7,7 +7,12 @@ import {
 } from "@/lib/api";
 import { CONNECTOR_CATEGORIES, oauthCallback, maskSecret, type Connector, type CredentialField } from "@/lib/connectors";
 import { hasBackend } from "@/lib/supabase";
-import { connectIntegration as connectIntegrationRemote, startOAuth } from "@/lib/integrations";
+import {
+  connectIntegration as connectIntegrationRemote, startOAuth,
+  listConnections as listConnectionsRemote,
+  disconnectIntegration as disconnectIntegrationRemote,
+  setTierMapping as setTierMappingRemote,
+} from "@/lib/integrations";
 import { SectionHead, Card, CardBody, Button, Badge, Dialog, Field, Input, Textarea, Label } from "@/components/ui";
 import { useAdminOrg } from "../useAdminOrg";
 import type { Connection } from "@/types/domain";
@@ -18,10 +23,23 @@ export default function Integrations() {
   const { orgId } = useAdminOrg();
   const db = useStore((d) => d);
   const [active, setActive] = useState<Connector | null>(null);
+  const backend = hasBackend();
+
+  // With a real backend, connections live in Postgres (via the v1-connections
+  // Edge Function), not the local store. Load them and re-fetch after changes.
+  const [remoteConns, setRemoteConns] = useState<Connection[] | null>(null);
+  const reload = useCallback(async () => {
+    if (!backend || !orgId) return;
+    try { setRemoteConns(await listConnectionsRemote(orgId)); }
+    catch { setRemoteConns([]); }
+  }, [backend, orgId]);
+  useEffect(() => { void reload(); }, [reload]);
 
   if (!orgId) return null;
   const connectors = listConnectors();
-  const connections = listConnections(db, orgId);
+  const connections = backend ? (remoteConns ?? []) : listConnections(db, orgId);
+  const findConn = (provider: string): Connection | undefined =>
+    backend ? connections.find((c) => c.provider === provider) : getConnection(db, orgId, provider);
   const connectedCount = connections.filter((c) => c.status === "connected").length;
 
   return (
@@ -44,9 +62,13 @@ export default function Integrations() {
                 <ConnectorCard
                   key={c.provider}
                   connector={c}
-                  connection={getConnection(db, orgId, c.provider)}
+                  connection={findConn(c.provider)}
                   onOpen={() => setActive(c)}
-                  onDisconnect={() => confirm(`Desconectar ${c.label}? Os perks ligados deixam de ser provisionados.`) && disconnectIntegration(orgId, c.provider)}
+                  onDisconnect={async () => {
+                    if (!confirm(`Desconectar ${c.label}? Os perks ligados deixam de ser provisionados.`)) return;
+                    if (backend) { try { await disconnectIntegrationRemote(orgId, c.provider); } catch { /* ignore */ } await reload(); }
+                    else disconnectIntegration(orgId, c.provider);
+                  }}
                 />
               ))}
             </div>
@@ -63,8 +85,9 @@ export default function Integrations() {
           connector={active}
           orgId={orgId}
           tiers={listTiers(db, orgId)}
-          connection={getConnection(db, orgId, active.provider)}
+          connection={findConn(active.provider)}
           perks={listPerks(db, orgId)}
+          onChanged={reload}
           onClose={() => setActive(null)}
         />
       )}
@@ -133,13 +156,14 @@ function CredentialInput({ field, value, onChange }: { field: CredentialField; v
 }
 
 function ConnectDialog({
-  connector, orgId, tiers, connection, perks, onClose,
+  connector, orgId, tiers, connection, perks, onChanged, onClose,
 }: {
   connector: Connector;
   orgId: string;
   tiers: ReturnType<typeof listTiers>;
   connection?: Connection;
   perks: ReturnType<typeof listPerks>;
+  onChanged?: () => void;
   onClose: () => void;
 }) {
   const connected = connection?.status === "connected";
@@ -183,6 +207,7 @@ function ConnectDialog({
         setSubmitting(true);
         try {
           await connectIntegrationRemote(orgId, connector.provider, creds, deriveLabel());
+          onChanged?.();
           onClose();
         } catch (e) {
           // surface the provider's real verification error in the dialog.
@@ -322,7 +347,13 @@ function ConnectDialog({
                     </span>
                     <Input
                       defaultValue={connection?.mappings.find((m) => m.tierId === t.id)?.resource ?? ""}
-                      onBlur={(e) => setTierMapping(orgId, connector.provider, t.id, e.target.value)}
+                      onBlur={async (e) => {
+                        if (hasBackend()) {
+                          try { await setTierMappingRemote(orgId, connector.provider, t.id, e.target.value); onChanged?.(); } catch { /* ignore */ }
+                        } else {
+                          setTierMapping(orgId, connector.provider, t.id, e.target.value);
+                        }
+                      }}
                       placeholder={`${connector.resourceLabel}…`}
                       className="font-mono text-sm"
                     />
