@@ -17,6 +17,9 @@ import { ok, error, AppError } from "../_shared/response.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { resolveAuth, type AuthContext } from "../_shared/auth.ts";
 import { type SupabaseClient } from "@supabase/supabase-js";
+import { getAdapter } from "../_shared/connectors/registry.ts";
+import { encryptCredentials } from "../_shared/crypto.ts";
+import { enqueueProvision } from "../_shared/provision.ts";
 
 // ── helpers ────────────────────────────────────────────────────────
 const FUNCTION_PREFIX = /^\/v1-connections/;
@@ -26,17 +29,15 @@ function routePath(req: Request): string {
   return new URL(req.url).pathname.replace(FUNCTION_PREFIX, "").replace(/\/+$/, "") || "/";
 }
 
-/** Masks a secret value, keeping only the last 4 chars (e.g. "•••• 9f2a"). */
-function maskSecret(value: unknown): string {
-  const s = String(value ?? "");
-  if (s.length <= 4) return "••••";
-  return `•••• ${s.slice(-4)}`;
-}
-
-/** Returns credentials with every value masked — safe to send to the client. */
+/**
+ * Returns credentials with every value masked — safe to send to the client.
+ * Stored values are AES-GCM ciphertext, so we NEVER echo them (neither the
+ * ciphertext nor any derived substring). We only reveal which fields are
+ * present, masking each value with a fixed placeholder.
+ */
 function maskCredentials(creds: Record<string, unknown> | null | undefined): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(creds ?? {})) out[k] = maskSecret(v);
+  for (const k of Object.keys(creds ?? {})) out[k] = "••••";
   return out;
 }
 
@@ -82,17 +83,27 @@ async function listConnections(db: SupabaseClient, auth: AuthContext): Promise<R
 
 /**
  * POST /connect — connect (or reconnect) a provider.
- * Body: { provider, credentials?, accountLabel? }. Upserts on (org_id, provider),
- * sets status=connected and stamps connected_at. Secrets are stored as-is server
- * side and masked on the response.
+ * Body: { provider, credentials?, accountLabel? }. Upserts on (org_id, provider).
+ *
+ * REAL flow: if the provider has an adapter we run adapter.verify() with the RAW
+ * (plaintext) credentials. On failure → status=error, last_error stored, 422. On
+ * success → credentials are AES-GCM encrypted (encryptCredentials) before storage,
+ * status=connected, and account/verification metadata is stamped. Providers with
+ * no adapter (none expected) fall back to storing the credentials as-is.
+ * Secrets are masked from field keys on every response — ciphertext never leaks.
  */
 async function connect(db: SupabaseClient, auth: AuthContext, body: any): Promise<Response> {
   const provider = String(body?.provider ?? "").trim();
   if (!provider) throw new AppError("validation_failed", "provider é obrigatório", 422);
 
-  const credentials = (body?.credentials && typeof body.credentials === "object")
+  // RAW (plaintext) credentials from the request — only ever used to verify and
+  // then encrypt; never stored or returned as-is once an adapter is present.
+  const rawCredentials = (body?.credentials && typeof body.credentials === "object")
     ? body.credentials as Record<string, unknown>
     : {};
+  const credentialsStr: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawCredentials)) credentialsStr[k] = String(v ?? "");
+
   const accountLabel = body?.accountLabel != null ? String(body.accountLabel) : null;
   const now = new Date().toISOString();
 
@@ -103,10 +114,94 @@ async function connect(db: SupabaseClient, auth: AuthContext, body: any): Promis
     .eq("provider", provider)
     .maybeSingle();
 
+  const adapter = getAdapter(provider);
+
+  // ── adapter path: verify with raw creds, then encrypt before storing ──
+  if (adapter) {
+    let verify;
+    try {
+      verify = await adapter.verify(credentialsStr);
+    } catch (e) {
+      verify = { ok: false, error: e instanceof Error ? e.message : "Falha ao verificar credenciais" };
+    }
+
+    if (verify.ok === false) {
+      const lastError = verify.error ?? "Verificação falhou";
+      // Persist the error state so the owner sees why the connection failed.
+      if (existing) {
+        await db
+          .from("connections")
+          .update({ status: "error", last_error: lastError })
+          .eq("org_id", auth.orgId)
+          .eq("provider", provider);
+      } else {
+        await db.from("connections").insert({
+          org_id: auth.orgId,
+          provider,
+          status: "error",
+          account_label: accountLabel,
+          mappings: [],
+          credentials: {},
+          last_error: lastError,
+        });
+      }
+      await db.from("audit_logs").insert({
+        org_id: auth.orgId,
+        actor: "api",
+        action: "connection.verify_failed",
+        target: provider,
+      });
+      throw new AppError("verification_failed", lastError, 422);
+    }
+
+    // Verified → encrypt (merged over existing ciphertext so a partial re-connect
+    // doesn't wipe untouched secrets) and stamp verification metadata.
+    const encrypted = await encryptCredentials(credentialsStr);
+    const mergedCreds = { ...(existing?.credentials ?? {}), ...encrypted };
+    const fields = {
+      status: "connected",
+      connected_at: now,
+      credentials: mergedCreds,
+      account_label: accountLabel ?? verify.accountLabel ?? existing?.account_label ?? null,
+      external_account_id: verify.externalAccountId ?? null,
+      last_verified_at: now,
+      last_error: null,
+    };
+
+    let row: Record<string, any> | null = null;
+    if (existing) {
+      const { data, error: dbErr } = await db
+        .from("connections")
+        .update(fields)
+        .eq("org_id", auth.orgId)
+        .eq("provider", provider)
+        .select("*")
+        .single();
+      if (dbErr) throw new AppError("internal_error", "Falha ao conectar", 500);
+      row = data;
+    } else {
+      const { data, error: dbErr } = await db
+        .from("connections")
+        .insert({ org_id: auth.orgId, provider, mappings: [], ...fields })
+        .select("*")
+        .single();
+      if (dbErr) throw new AppError("internal_error", "Falha ao conectar", 500);
+      row = data;
+    }
+
+    await db.from("audit_logs").insert({
+      org_id: auth.orgId,
+      actor: "api",
+      action: "connection.connected",
+      target: provider,
+    });
+    return ok({ connection: presentConnection(row!) });
+  }
+
+  // ── no adapter (none expected): store credentials as-is (legacy path) ──
   let row: Record<string, any> | null = null;
   if (existing) {
-    // Merge credentials so a partial re-connect doesn't wipe existing secrets.
-    const mergedCreds = { ...(existing.credentials ?? {}), ...credentials };
+    const mergedCreds = { ...(existing.credentials ?? {}), ...credentialsStr };
     const { data, error: dbErr } = await db
       .from("connections")
       .update({
@@ -131,7 +226,7 @@ async function connect(db: SupabaseClient, auth: AuthContext, body: any): Promis
         account_label: accountLabel,
         connected_at: now,
         mappings: [],
-        credentials,
+        credentials: credentialsStr,
       })
       .select("*")
       .single();
@@ -152,6 +247,11 @@ async function connect(db: SupabaseClient, auth: AuthContext, body: any): Promis
 /**
  * POST /disconnect — mark a provider as disconnected (keeps the row + mappings
  * so reconnecting restores config). Body: { provider }.
+ *
+ * After flipping the status we enqueue a `revoke` job for every active member of
+ * the org whose tier maps to one of this connection's resources, so the perk is
+ * pulled when the integration goes away. This is BEST-EFFORT — enqueue errors do
+ * not fail the disconnect.
  */
 async function disconnect(db: SupabaseClient, auth: AuthContext, body: any): Promise<Response> {
   const provider = String(body?.provider ?? "").trim();
@@ -166,6 +266,34 @@ async function disconnect(db: SupabaseClient, auth: AuthContext, body: any): Pro
     .maybeSingle();
   if (dbErr) throw new AppError("internal_error", "Falha ao desconectar", 500);
   if (!data) throw new AppError("not_found", "Conexão não encontrada", 404);
+
+  // Best-effort: enqueue revoke jobs for every active member on a mapped tier.
+  try {
+    const mappings = ((data.mappings ?? []) as TierMapping[]).filter((m) => m?.tierId && m?.resource);
+    for (const mapping of mappings) {
+      const { data: members } = await db
+        .from("members")
+        .select("id")
+        .eq("org_id", auth.orgId)
+        .eq("tier_id", mapping.tierId)
+        .eq("status", "active");
+      for (const member of members ?? []) {
+        try {
+          await enqueueProvision(db, {
+            orgId: auth.orgId,
+            provider,
+            memberId: member.id,
+            action: "revoke",
+            resource: mapping.resource,
+          });
+        } catch {
+          // swallow — one member's enqueue failure must not block disconnect.
+        }
+      }
+    }
+  } catch {
+    // swallow — revoke fan-out is best-effort.
+  }
 
   await db.from("audit_logs").insert({
     org_id: auth.orgId,

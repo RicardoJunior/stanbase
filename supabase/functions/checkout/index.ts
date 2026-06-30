@@ -6,6 +6,7 @@ import { ok, error } from "../_shared/response.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { computeTransaction, type Method, type Period, type BillingSettings } from "../_shared/billing.ts";
 import { createCustomer, createPayment, getPixQrCode } from "../_shared/asaas.ts";
+import { enqueueForMemberTier } from "../_shared/provision.ts";
 
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DIGITS = "23456789";
@@ -53,9 +54,11 @@ Deno.serve(async (req) => {
     await db.from("member_metrics").insert({ member_id: memberRow.id, org_id: orgId });
   }
 
-  // free tier → no charge
+  // free tier → no charge; the member is active immediately, so provision now.
   if (Number(tier.price) <= 0) {
     await db.from("audit_logs").insert({ org_id: orgId, actor: "checkout", action: "member.joined_free", target: memberRow.id });
+    // Best-effort: grant tier perks. Never fail the join path on provisioning.
+    try { await enqueueForMemberTier(db, { orgId, memberId: memberRow.id, tierId, action: "grant" }); } catch (_) { /* ignore */ }
     return ok({ member: memberRow, free: true });
   }
 

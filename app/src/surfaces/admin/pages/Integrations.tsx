@@ -6,11 +6,13 @@ import {
   setTierMapping, listTiers, listPerks,
 } from "@/lib/api";
 import { CONNECTOR_CATEGORIES, oauthCallback, maskSecret, type Connector, type CredentialField } from "@/lib/connectors";
+import { hasBackend } from "@/lib/supabase";
+import { connectIntegration as connectIntegrationRemote, startOAuth } from "@/lib/integrations";
 import { SectionHead, Card, CardBody, Button, Badge, Dialog, Field, Input, Textarea, Label } from "@/components/ui";
 import { useAdminOrg } from "../useAdminOrg";
 import type { Connection } from "@/types/domain";
 
-const KIND_LABEL: Record<string, string> = { oauth: "OAuth 2.0", api_key: "API key", bot: "Bot", manual: "Manual" };
+const KIND_LABEL: Record<string, string> = { oauth: "OAuth 2.0", api_key: "API key", bot: "Bot", manual: "Manual", supabase: "Login · Supabase" };
 
 export default function Integrations() {
   const { orgId } = useAdminOrg();
@@ -27,7 +29,7 @@ export default function Integrations() {
       <SectionHead
         eyebrow="Plugins · self-service"
         title="Integrações"
-        desc="Conecte uma vez e os perks são entregues sozinhos. Cada integração pede as credenciais reais da sua API."
+        desc="Conecte uma vez e os perks são entregues sozinhos. Integrações pedem as credenciais reais da API; o login é gerenciado pela Stanbase via Supabase."
         action={<Badge tone="success">{connectedCount} conectadas</Badge>}
       />
 
@@ -143,23 +145,64 @@ function ConnectDialog({
   const connected = connection?.status === "connected";
   const [reconfig, setReconfig] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const { kind, fields, scopes, docsUrl, note } = connector.auth;
   const enabledPerks = perks.filter((p) => connector.perkTypes.includes(p.type));
 
   const requiredOk = fields.filter((f) => f.required).every((f) => (values[f.key] ?? "").trim().length > 0);
   const set = (k: string, v: string) => setValues((s) => ({ ...s, [k]: v }));
 
-  const submit = () => {
-    // mask secrets before storing (never keep plaintext in v0 store)
+  /** Account label shown in the UI (derived from the first text/url field). */
+  const deriveLabel = () => {
+    const labelField = fields.find((f) => f.type === "text" && values[f.key]) ?? fields.find((f) => f.type === "url" && values[f.key]);
+    return kind === "supabase"
+      ? "Login ativo"
+      : (labelField && values[labelField.key]) || `${connector.label} conectado`;
+  };
+
+  const submit = async () => {
+    if (submitting) return;
+    setError(null);
+
+    // REAL backend: hit the Edge `v1-connections` function (or redirect to OAuth).
+    if (hasBackend()) {
+      // OAuth providers don't post credentials — redirect to the provider consent.
+      if (kind === "oauth") {
+        window.location.href = startOAuth(connector.provider, orgId);
+        return;
+      }
+      // api_key / bot / manual → verify + store credentials server-side.
+      if (kind === "api_key" || kind === "bot" || kind === "manual") {
+        // send RAW credentials — the server encrypts them; never mask here.
+        const creds: Record<string, string> = {};
+        for (const f of fields) {
+          const v = (values[f.key] ?? "").trim();
+          if (v) creds[f.key] = v;
+        }
+        setSubmitting(true);
+        try {
+          await connectIntegrationRemote(orgId, connector.provider, creds, deriveLabel());
+          onClose();
+        } catch (e) {
+          // surface the provider's real verification error in the dialog.
+          setError(e instanceof Error ? e.message : "Falha ao conectar.");
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+      // `supabase` (platform-managed login) keeps the local toggle behaviour.
+    }
+
+    // PROTOTYPE / offline demo: mask secrets before storing (never keep plaintext).
     const creds: Record<string, string> = {};
     for (const f of fields) {
       const v = (values[f.key] ?? "").trim();
       if (!v) continue;
       creds[f.key] = f.type === "secret" ? maskSecret(v) : v;
     }
-    const labelField = fields.find((f) => f.type === "text" && values[f.key]) ?? fields.find((f) => f.type === "url" && values[f.key]);
-    const accountLabel = (labelField && values[labelField.key]) || `${connector.label} conectado`;
-    connectIntegration(orgId, connector.provider, accountLabel, creds);
+    connectIntegration(orgId, connector.provider, deriveLabel(), creds);
     onClose();
   };
 
@@ -176,8 +219,11 @@ function ConnectDialog({
         showForm ? (
           <>
             <Button variant="ghost" onClick={connected ? () => setReconfig(false) : onClose}>Cancelar</Button>
-            <Button onClick={submit} disabled={!requiredOk}>
-              {kind === "oauth" ? <><ShieldCheck size={15} /> Autorizar com {connector.label}</> : <><KeyRound size={15} /> Conectar</>}
+            <Button onClick={submit} disabled={!requiredOk || submitting}>
+              {submitting ? "Conectando…"
+                : kind === "oauth" ? <><ShieldCheck size={15} /> Autorizar com {connector.label}</>
+                : kind === "supabase" ? <><ShieldCheck size={15} /> Ativar login</>
+                : <><KeyRound size={15} /> Conectar</>}
             </Button>
           </>
         ) : (
@@ -197,6 +243,11 @@ function ConnectDialog({
 
       {showForm ? (
         <>
+          {error && (
+            <div className="rounded-xl border border-danger/30 bg-danger/10 text-danger text-sm px-3 py-2.5 mb-4">
+              {error}
+            </div>
+          )}
           {kind === "oauth" && (
             <div className="rounded-xl border border-line bg-surface-2/40 p-3 mb-4 text-sm">
               {scopes && scopes.length > 0 && (
@@ -217,15 +268,26 @@ function ConnectDialog({
           {fields.length === 0 && kind === "oauth" && (
             <p className="text-sm text-muted">Clique em autorizar para entrar com {connector.label}.</p>
           )}
+          {kind === "supabase" && (
+            <p className="text-sm text-muted">Ative para oferecer este método aos seus membros na tela de login. A configuração fica na plataforma (Supabase Auth) — você não informa nenhuma credencial.</p>
+          )}
           {fields.map((f) => (
             <CredentialInput key={f.key} field={f} value={values[f.key] ?? ""} onChange={(v) => set(f.key, v)} />
           ))}
-          <p className="text-[0.7rem] text-muted flex items-center gap-1.5 mt-1">
-            <Lock size={11} /> Segredos são cifrados e nunca expostos ao navegador.
-          </p>
+          {fields.length > 0 && (
+            <p className="text-[0.7rem] text-muted flex items-center gap-1.5 mt-1">
+              <Lock size={11} /> Segredos são cifrados e nunca expostos ao navegador.
+            </p>
+          )}
         </>
       ) : (
         <>
+          {/* connected: login method (Supabase) — no creds/mapping */}
+          {kind === "supabase" && (
+            <div className="flex items-center gap-2 text-sm rounded-xl border border-success/30 bg-success/10 text-success px-3 py-2.5">
+              <ShieldCheck size={15} /> Seus membros podem entrar com {connector.label}.
+            </div>
+          )}
           {/* connected: credentials summary */}
           {fields.length > 0 && (
             <div className="rounded-xl border border-line p-3 mb-4">

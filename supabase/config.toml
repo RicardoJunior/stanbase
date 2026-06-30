@@ -54,3 +54,13 @@ verify_jwt = false
 
 [functions.v1-domains]
 verify_jwt = false
+
+# Real integrations backend (connections, OAuth, provisioning queue, webhooks).
+[functions.integrations-oauth]
+verify_jwt = false
+
+[functions.integrations-provision]
+verify_jwt = false
+
+[functions.integrations-webhook]
+verify_jwt = false

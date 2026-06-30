@@ -7,6 +7,12 @@
  * v0: credentials are collected and the connection is marked connected (secrets
  * are masked, not stored in clear). REPLAN: the real OAuth code exchange / API
  * verification call + encrypted secret storage happen server-side (Edge Function).
+ *
+ * Identidade & login (kind "supabase"): login é 100% Supabase Auth. Os provedores
+ * são configurados uma vez na plataforma — o dono só escolhe quais métodos oferecer,
+ * sem credenciais por org. Só entram provedores que o Supabase suporta nativamente
+ * (e-mail, telefone/OTP, Google, Apple, X, Facebook). Pagamento de assinatura é
+ * exclusivamente Asaas; não há connector de commerce por decisão de produto.
  */
 import type { PerkTypeKey } from "@/types/domain";
 
@@ -20,7 +26,7 @@ export type ConnectorCategory =
   | "channels"
   | "automation";
 
-export type AuthKind = "oauth" | "api_key" | "bot" | "manual";
+export type AuthKind = "oauth" | "api_key" | "bot" | "manual" | "supabase";
 
 export interface CredentialField {
   key: string;
@@ -65,7 +71,7 @@ export const CONNECTOR_CATEGORIES: { key: ConnectorCategory; label: string }[] =
   { key: "events", label: "Eventos" },
   { key: "communication", label: "Comunicação" },
   { key: "niche", label: "Perks de nicho" },
-  { key: "identity", label: "Identidade" },
+  { key: "identity", label: "Identidade & login" },
   { key: "automation", label: "Automação & API" },
 ];
 
@@ -282,57 +288,86 @@ export const CONNECTORS: Connector[] = [
       ],
     },
   },
-  // ── identidade (login social) ───────────────────────────────────
+  // ── identidade & login (gerenciado pela Stanbase via Supabase Auth) ──
+  // Login é 100% Supabase Auth. Os provedores são configurados uma vez na
+  // plataforma — o dono só ESCOLHE quais métodos oferecer (sem colar segredo).
+  // Só entram aqui métodos que o Supabase suporta nativamente.
+  {
+    provider: "email",
+    label: "E-mail (link mágico / OTP)",
+    category: "identity",
+    blurb: "Login sem senha por link mágico ou código no e-mail. Método padrão.",
+    perkTypes: [],
+    auth: {
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+      note: "Login gerenciado pela Stanbase via Supabase Auth. Ative para oferecê-lo aos seus membros — sem credenciais.",
+      fields: [],
+    },
+  },
+  {
+    provider: "phone",
+    label: "Telefone (OTP)",
+    category: "identity",
+    blurb: "Login por código (SMS/WhatsApp); verifica o número para perks de WhatsApp.",
+    perkTypes: [],
+    auth: {
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/phone-login",
+      note: "Login por OTP gerenciado pela Stanbase via Supabase Auth — sem credenciais. (Envio de SMS/WhatsApp na conta da plataforma.)",
+      fields: [],
+    },
+  },
   {
     provider: "google",
     label: "Google",
     category: "identity",
-    blurb: "Login social do membro (OAuth 2.0).",
+    blurb: "Login social com a conta Google.",
     perkTypes: [],
     auth: {
-      kind: "oauth",
-      docsUrl: "https://console.cloud.google.com/apis/credentials",
-      scopes: ["openid", "email", "profile"],
-      note: "Crie credenciais OAuth no Google Cloud e cole o Client ID/Secret.",
-      fields: [
-        { key: "client_id", label: "Client ID", type: "text", required: true, placeholder: "…apps.googleusercontent.com" },
-        { key: "client_secret", label: "Client Secret", type: "secret", required: true },
-      ],
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/social-login/auth-google",
+      note: "Login social gerenciado pela Stanbase via Supabase Auth. Ative para oferecê-lo — sem credenciais por comunidade.",
+      fields: [],
     },
   },
   {
     provider: "apple",
     label: "Apple",
     category: "identity",
-    blurb: "Sign in with Apple.",
+    blurb: "Sign in with Apple (obrigatório em apps iOS com login social).",
     perkTypes: [],
     auth: {
-      kind: "oauth",
-      docsUrl: "https://developer.apple.com/account/resources/identifiers",
-      note: "Sign in with Apple usa um Services ID + chave privada (.p8).",
-      fields: [
-        { key: "services_id", label: "Services ID (client_id)", type: "text", required: true, placeholder: "com.suacomunidade.app" },
-        { key: "team_id", label: "Team ID", type: "text", required: true },
-        { key: "key_id", label: "Key ID", type: "text", required: true },
-        { key: "private_key", label: "Chave privada (.p8)", type: "textarea", required: true, help: "Conteúdo do arquivo AuthKey_XXXX.p8" },
-      ],
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/social-login/auth-apple",
+      note: "Login social gerenciado pela Stanbase via Supabase Auth. Ative para oferecê-lo — sem credenciais por comunidade.",
+      fields: [],
     },
   },
   {
     provider: "x",
-    label: "X",
+    label: "X (Twitter)",
     category: "identity",
-    blurb: "Login social + verificação de fã (OAuth 2.0).",
+    blurb: "Login social com a conta do X.",
     perkTypes: [],
     auth: {
-      kind: "oauth",
-      docsUrl: "https://developer.x.com/en/portal/dashboard",
-      scopes: ["users.read", "tweet.read"],
-      note: "Crie um app no Developer Portal do X (OAuth 2.0).",
-      fields: [
-        { key: "client_id", label: "Client ID", type: "text", required: true },
-        { key: "client_secret", label: "Client Secret", type: "secret", required: true },
-      ],
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/social-login/auth-twitter",
+      note: "Login social gerenciado pela Stanbase via Supabase Auth. Ative para oferecê-lo — sem credenciais por comunidade.",
+      fields: [],
+    },
+  },
+  {
+    provider: "facebook",
+    label: "Facebook",
+    category: "identity",
+    blurb: "Login social com a conta do Facebook.",
+    perkTypes: [],
+    auth: {
+      kind: "supabase",
+      docsUrl: "https://supabase.com/docs/guides/auth/social-login/auth-facebook",
+      note: "Login social gerenciado pela Stanbase via Supabase Auth. Ative para oferecê-lo — sem credenciais por comunidade.",
+      fields: [],
     },
   },
   // ── comunicação ─────────────────────────────────────────────────

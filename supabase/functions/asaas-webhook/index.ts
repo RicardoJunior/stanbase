@@ -3,6 +3,7 @@
 // Asaas → Integrações → Webhooks (the token is checked against ASAAS_WEBHOOK_TOKEN).
 import { ok, error } from "../_shared/response.ts";
 import { serviceClient } from "../_shared/supabase.ts";
+import { enqueueForMemberTier } from "../_shared/provision.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return error("method_not_allowed", "Use POST", 405);
@@ -44,6 +45,14 @@ Deno.serve(async (req) => {
             last_active_at: new Date().toISOString(),
           }).eq("member_id", tx.member_id);
         }
+        // Payment confirmed → member is active: provision the tier's perks via the
+        // integration adapters. Best-effort — never fail the webhook on provisioning.
+        try {
+          const { data: mem } = await db.from("members").select("tier_id").eq("id", tx.member_id).maybeSingle();
+          if (mem?.tier_id) {
+            await enqueueForMemberTier(db, { orgId: tx.org_id, memberId: tx.member_id, tierId: mem.tier_id, action: "grant" });
+          }
+        } catch (_) { /* ignore */ }
       }
       break;
     case "PAYMENT_OVERDUE":

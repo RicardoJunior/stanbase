@@ -17,6 +17,7 @@ import {
   type Period,
   type BillingSettings,
 } from "../_shared/billing.ts";
+import { enqueueForMemberTier } from "../_shared/provision.ts";
 
 /** Path relative to the function name, e.g. "/{id}/cancel". */
 function relativePath(req: Request): string {
@@ -117,6 +118,17 @@ Deno.serve(async (req) => {
       .eq("id", sub.member_id)
       .eq("org_id", orgId);
 
+    // Best-effort: revoke tier perks now that the member has churned.
+    // Never fail the cancel path on provisioning.
+    try {
+      await enqueueForMemberTier(db, {
+        orgId,
+        memberId: sub.member_id,
+        tierId: sub.tier_id,
+        action: "revoke",
+      });
+    } catch (_) { /* ignore */ }
+
     await db.from("audit_logs").insert({
       org_id: orgId,
       actor: "api",
@@ -193,6 +205,23 @@ Deno.serve(async (req) => {
       .update({ tier_id: tierId })
       .eq("id", sub.member_id)
       .eq("org_id", orgId);
+
+    // Tier change = leave old tier + enter new tier. Best-effort: revoke the
+    // old tier's perks and grant the new one's. Never fail the change path.
+    try {
+      await enqueueForMemberTier(db, {
+        orgId,
+        memberId: sub.member_id,
+        tierId: sub.tier_id,
+        action: "revoke",
+      });
+      await enqueueForMemberTier(db, {
+        orgId,
+        memberId: sub.member_id,
+        tierId,
+        action: "grant",
+      });
+    } catch (_) { /* ignore */ }
 
     await db.from("audit_logs").insert({
       org_id: orgId,
